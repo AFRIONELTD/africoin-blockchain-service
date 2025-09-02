@@ -1,0 +1,11 @@
+services:
+  africoin-service:
+    build: .
+    container_name: africoin-service
+    # Map host port from env (defaults to 3000) to container port 3000
+    ports:
+      - "${PORT:-3000}:3000"
+    # Load all environment variables from local file (not copied into the image)
+    env_file:
+      - .env
+    restart: unless-stopped

@@ -1,0 +1,11 @@
+# Ignore unnecessary files from the Docker build context
+node_modules
+npm-debug.log
+.DS_Store
+.git
+.gitignore
+.zencoder
+.env
+.env.*
+Dockerfile
+docker-compose.yml
