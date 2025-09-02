@@ -35,19 +35,19 @@ All responses follow this structure:
 
 **POST** `/api/africoin/mint`
 
-Mint Africoin tokens on ETH or TRX.
+Mint Africoin tokens on AFRiErc20 or AFRiTrc20.
 
 **Body:**
 ```json
 {
-  "type": "ETH" | "TRX",
+  "type": "AFRiErc20" | "AFRiTrc20",
   "privateKey": "<signer private key>",
   "to": "<recipient address>",
   "amount": "<amount>"
 }
 ```
 
-- For TRX, the private key should not include a leading `0x`.
+- For AFRiTrc20, the private key should not include a leading `0x`.
 
 **Response:**
 ```json
@@ -69,13 +69,13 @@ Add an admin to the Africoin contract.
 **Body:**
 ```json
 {
-  "blockchain": "ETH" | "TRX",
+  "blockchain": "AFRiErc20" | "AFRiTrc20",
   "privateKey": "<signer private key>",
   "admin": "<admin address>"
 }
 ```
 
-- For TRX, the private key should not include a leading `0x`.
+- For AFRiTrc20, the private key should not include a leading `0x`.
 
 **Response:**
 ```json
@@ -127,7 +127,7 @@ Remove an admin (owner only).
 
 ---
 
-### 5. Get Africoin Token Balance (ETH contract)
+### 5. Get Africoin Token Balance (AFRiErc20 contract)
 
 **GET** `/api/africoin/balance/:address`
 
@@ -146,12 +146,12 @@ Remove an admin (owner only).
 
 **POST** `/api/africoin/create-wallets`
 
-Create one or both wallets (ETH, TRX).
+Create one or both wallets (AFRiErc20, AFRiTrc20).
 
 **Body Example:**
 ```json
 {
-  "type": "ETH" | "TRX" | null,
+  "type": "AFRiErc20" | "AFRiTrc20" | null,
   "mnemonic": "<optional seed phrase>"
 }
 ```
@@ -165,7 +165,7 @@ Create one or both wallets (ETH, TRX).
     "seedPhrase": "<mnemonic>",
     "wallets": [
       {
-        "blockchain": "ETH" | "TRX",
+        "blockchain": "AFRiErc20" | "AFRiTrc20",
         "success": true,
         "address": "<address>",
         "privateKey": "<privateKey>",
@@ -180,7 +180,7 @@ Create one or both wallets (ETH, TRX).
 
 ### 7. Create Wallet (Single)
 
-**GET** `/api/africoin/create-wallet?type=ETH|TRX`
+**GET** `/api/africoin/create-wallet?type=AFRiErc20|AFRiTrc20`
 
 **Response:**
 ```json
@@ -191,7 +191,7 @@ Create one or both wallets (ETH, TRX).
     "address": "<address>",
     "publicKey": "<publicKey>",
     "network": "<network>",
-    "type": "ETH" | "TRX",
+    "type": "AFRiErc20" | "AFRiTrc20",
     "mnemonic": "<mnemonic>",
     "derivationPath": "<path>",
     "privateKey": "<privateKey>" // if requested
@@ -210,7 +210,7 @@ Transfer Africoin tokens.
 **Body:**
 ```json
 {
-  "blockchain": "ETH" | "TRX",
+  "blockchain": "AFRiErc20" | "AFRiTrc20",
   "privateKey": "<sender private key>",
   "to": "<recipient address>",
   "amount": "<amount>"
@@ -228,12 +228,12 @@ Transfer Africoin tokens.
 
 ---
 
-### 9. Get Africoin Token Balance (ETH or TRX)
+### 9. Get Africoin Token Balance (AFRiErc20 or AFRiTrc20)
 
-**GET** `/api/africoin/wallet/token-balance?type=ETH|TRX&address=<wallet-address>`
+**GET** `/api/africoin/wallet/token-balance?type=AFRiErc20|AFRiTrc20&address=<wallet-address>`
 
 **Query Parameters:**
-- `type`: `ETH` or `TRX`
+- `type`: `AFRiErc20` or `AFRiTrc20`
 - `address`: wallet address
 
 **Response:**
@@ -247,11 +247,40 @@ Transfer Africoin tokens.
 
 ---
 
+### 10. Validate Address
+
+**GET** `/api/africoin/validate-address?type=AFRiErc20|AFRiTrc20&address=<address>`
+
+Validates a wallet address for the specified type.
+
+- `AFRiErc20`: Ethereum address validation
+- `AFRiTrc20`: Tron address validation
+
+**Response (valid):**
+```json
+{
+  "success": true,
+  "message": "Valid address",
+  "data": { "isValid": true }
+}
+```
+
+**Response (invalid):**
+```json
+{
+  "success": false,
+  "message": "Invalid address",
+  "data": { "isValid": false }
+}
+```
+
+---
+
 ## Example: Authenticated Request
 
 ```sh
 curl -H "Authorization: Bearer <your-token>" \
-  http://localhost:3000/api/africoin/wallet/token-balance?type=TRX&address=TQz44WVMq7jyy8oJuiq9USDBKgzubP9DDJ
+  "http://localhost:3000/api/africoin/wallet/token-balance?type=AFRiTrc20&address=TQz44WVMq7jyy8oJuiq9USDBKgzubP9DDJ"
 ```
 
 ---
@@ -265,4 +294,4 @@ All errors follow this format:
   "message": "Error message",
   "data": null
 }
-``` 
+```

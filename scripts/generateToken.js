@@ -1,5 +1,8 @@
 const jwt = require('jsonwebtoken');
-const { JWT_SECRET } = require('../src/middleware/auth');
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your-very-secure-secret';
 
 // You can customize the payload as needed
 const payload = {

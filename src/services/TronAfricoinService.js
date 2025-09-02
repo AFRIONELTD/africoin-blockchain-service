@@ -14,7 +14,8 @@ if (typeof tronWebModule === 'function') {
 } else {
   throw new Error('Unable to find TronWeb constructor in the imported module');
 }
-const africoinAbi = require('../../../Tron-smart-contract/build/contracts/Africoin.json').abi;
+// Load Africoin TRC20 ABI from local abi directory to avoid external path dependency
+const africoinAbi = require('../abi/tron/africoin.json').abi;
 const config = require('../config/provider');
 require('dotenv').config();
 

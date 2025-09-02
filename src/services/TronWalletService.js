@@ -22,7 +22,7 @@ const config = require('../config/provider');
 class TronWalletService extends IWalletService {
   constructor() {
     super();
-    this.type = 'TRX';
+    this.type = 'AFRiTrc20';
     this.tronWeb = new TronWeb({
       fullHost: process.env.NODE_ENV === 'development'
         ? config.blockchain?.tronTestnetRpcUrl
@@ -54,7 +54,7 @@ class TronWalletService extends IWalletService {
       const result = {
         address,
         network,
-        type: 'TRX',
+        type: 'AFRiTrc20',
         mnemonic: phrase,
         derivationPath: path
       };
@@ -101,4 +101,4 @@ class TronWalletService extends IWalletService {
   }
 }
 
-module.exports = new TronWalletService(); 
+module.exports = new TronWalletService();
