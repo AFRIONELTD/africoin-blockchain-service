@@ -17,7 +17,7 @@ const AFRICOIN_ABI = [
 
 // Use the correct env variable for AFRi_ERC20 (Ethereum)
 const contractAddress = process.env.CONTRACT_ADDRESS_ETH;
-const privateKey = process.env.PRIVATE_KEY;
+const privateKey = process.env.COMPANY_ETH_PRIVATE_KEY;
 
 console.log('AFRi_ERC20 contract address:', contractAddress); // Debug log
 if (!contractAddress) {
