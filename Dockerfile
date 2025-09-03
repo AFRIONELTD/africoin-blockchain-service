@@ -9,7 +9,8 @@ ENV NODE_ENV=production
 
 # Install dependencies (use npm ci for clean, reproducible installs)
 COPY package*.json ./
-RUN npm ci --omit=dev
+# Use npm install to tolerate lockfile drift; consider switching back to `npm ci` after updating package-lock.json
+RUN npm install --omit=dev --no-audit --no-fund
 
 # Copy application source
 COPY . .
