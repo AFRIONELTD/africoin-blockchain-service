@@ -10,7 +10,7 @@ const { authenticateToken } = require('../middleware/auth');
 // Protect all routes with JWT authentication
 router.use(authenticateToken);
 
-// Mint tokens (AFRiErc20 or AFRiTrc20)
+// Mint tokens (AFRi_ERC20 or AFRi_TRC20)
 router.post('/mint', async (req, res) => {
   const { type, privateKey, to, amount } = req.body || {};
   if (!type || !privateKey || !to || !amount) {
@@ -19,16 +19,16 @@ router.post('/mint', async (req, res) => {
   try {
     const normalizedType = String(type).toLowerCase();
     let txHash;
-    if (normalizedType === 'afrierc20') {
-      if (!to.startsWith('0x')) throw new Error('AFRiErc20 mint requires a 0x... address');
+    if (normalizedType === 'AFRi_ERC20') {
+      if (!to.startsWith('0x')) throw new Error('AFRi_ERC20 mint requires a 0x... address');
       const tx = await africoinService.mint(privateKey, to, amount);
       txHash = tx.hash;
-    } else if (normalizedType === 'afritrc20') {
-      if (!to.startsWith('T')) throw new Error('AFRiTrc20 mint requires a T... address');
+    } else if (normalizedType === 'AFRi_TRC20') {
+      if (!to.startsWith('T')) throw new Error('AFRi_TRC20 mint requires a T... address');
       const tx = await TronAfricoinService.mint(privateKey, to, amount);
       txHash = tx;
     } else {
-      return sendResponse(res, { success: false, message: 'Invalid type. Use AFRiErc20 or AFRiTrc20.', data: null, status: 400 });
+      return sendResponse(res, { success: false, message: 'Invalid type. Use AFRi_ERC20 or AFRi_TRC20.', data: null, status: 400 });
     }
     sendResponse(res, { success: true, message: 'Mint successful', data: { txHash } });
   } catch (err) {
@@ -36,7 +36,7 @@ router.post('/mint', async (req, res) => {
   }
 });
 
-// Add admin (AFRiErc20 or AFRiTrc20)
+// Add admin (AFRi_ERC20 or AFRi_TRC20)
 router.post('/add-admin', async (req, res) => {
   const { blockchain, privateKey, admin } = req.body || {};
   if (!blockchain || !privateKey || !admin) {
@@ -45,14 +45,14 @@ router.post('/add-admin', async (req, res) => {
   try {
     const normalizedChain = String(blockchain).toLowerCase();
     let txHash;
-    if (normalizedChain === 'afrierc20') {
+    if (normalizedChain === 'AFRi_ERC20') {
       const tx = await africoinService.addAdmin(privateKey, admin);
       txHash = tx.hash;
-    } else if (normalizedChain === 'afritrc20') {
+    } else if (normalizedChain === 'AFRi_TRC20') {
       const tx = await TronAfricoinService.addAdmin(privateKey, admin);
       txHash = tx;
     } else {
-      return sendResponse(res, { success: false, message: 'Invalid blockchain. Use AFRiErc20 or AFRiTrc20.', data: null, status: 400 });
+      return sendResponse(res, { success: false, message: 'Invalid blockchain. Use AFRi_ERC20 or AFRi_TRC20.', data: null, status: 400 });
     }
     sendResponse(res, { success: true, message: 'Admin added successfully', data: { txHash } });
   } catch (err) {
@@ -60,7 +60,7 @@ router.post('/add-admin', async (req, res) => {
   }
 });
 
-// Remove admin (owner only, AFRiErc20)
+// Remove admin (owner only, AFRi_ERC20)
 router.post('/remove-admin', async (req, res) => {
   const { admin } = req.body;
   try {
@@ -71,7 +71,7 @@ router.post('/remove-admin', async (req, res) => {
   }
 });
 
-// Check if address is admin (AFRiErc20)
+// Check if address is admin (AFRi_ERC20)
 router.get('/is-admin/:address', async (req, res) => {
   try {
     const isAdmin = await africoinService.isAdmin(req.params.address);
@@ -81,7 +81,7 @@ router.get('/is-admin/:address', async (req, res) => {
   }
 });
 
-// Get balance (AFRiErc20)
+// Get balance (AFRi_ERC20)
 router.get('/balance/:address', async (req, res) => {
   try {
     const balance = await africoinService.getBalance(req.params.address);
@@ -105,41 +105,41 @@ router.post('/create-wallets', async (req, res) => {
       seedPhrase = ethWallet.mnemonic;
       const trxWallet = await TronWalletService.generateWallet({ mnemonic: seedPhrase, includePrivateKey: true });
       wallets.push({
-        blockchain: 'AFRiErc20',
+        blockchain: 'AFRi_ERC20',
         success: true,
         address: ethWallet.address,
         privateKey: ethWallet.privateKey,
         timestamp
       });
       wallets.push({
-        blockchain: 'AFRiTrc20',
+        blockchain: 'AFRi_TRC20',
         success: true,
         address: trxWallet.address,
         privateKey: trxWallet.privateKey,
         timestamp
       });
-    } else if (String(type).toLowerCase() === 'afrierc20') {
+    } else if (String(type).toLowerCase() === 'AFRi_ERC20') {
       const ethWallet = await EthereumWalletService.generateWallet({ ...options, includePrivateKey: true });
       seedPhrase = ethWallet.mnemonic;
       wallets.push({
-        blockchain: 'AFRiErc20',
+        blockchain: 'AFRi_ERC20',
         success: true,
         address: ethWallet.address,
         privateKey: ethWallet.privateKey,
         timestamp
       });
-    } else if (String(type).toLowerCase() === 'afritrc20') {
+    } else if (String(type).toLowerCase() === 'AFRi_TRC20') {
       const trxWallet = await TronWalletService.generateWallet({ ...options, includePrivateKey: true });
       seedPhrase = trxWallet.mnemonic;
       wallets.push({
-        blockchain: 'AFRiTrc20',
+        blockchain: 'AFRi_TRC20',
         success: true,
         address: trxWallet.address,
         privateKey: trxWallet.privateKey,
         timestamp
       });
     } else {
-      return sendResponse(res, { success: false, message: 'Invalid wallet type. Use AFRiErc20 or AFRiTrc20.', data: null, status: 400 });
+      return sendResponse(res, { success: false, message: 'Invalid wallet type. Use AFRi_ERC20 or AFRi_TRC20.', data: null, status: 400 });
     }
 
     sendResponse(res, {
@@ -155,18 +155,18 @@ router.post('/create-wallets', async (req, res) => {
   }
 });
 
-// Create wallet - GET /create-wallet?type=AFRiErc20 or type=AFRiTrc20
+// Create wallet - GET /create-wallet?type=AFRi_ERC20 or type=AFRi_TRC20
 router.get('/create-wallet', async (req, res) => {
   const { type, ...options } = req.query;
   try {
     const normalizedType = String(type || '').toLowerCase();
     let result;
-    if (normalizedType === 'afrierc20') {
+    if (normalizedType === 'AFRi_ERC20') {
       result = await EthereumWalletService.generateWallet(options);
-    } else if (normalizedType === 'afritrc20') {
+    } else if (normalizedType === 'AFRi_TRC20') {
       result = await TronWalletService.generateWallet(options);
     } else {
-      return sendResponse(res, { success: false, message: 'Invalid wallet type. Use AFRiErc20 or AFRiTrc20.', data: null, status: 400 });
+      return sendResponse(res, { success: false, message: 'Invalid wallet type. Use AFRi_ERC20 or AFRi_TRC20.', data: null, status: 400 });
     }
     sendResponse(res, { success: true, message: 'Wallet generated successfully', data: result });
   } catch (err) {
@@ -174,7 +174,7 @@ router.get('/create-wallet', async (req, res) => {
   }
 });
 
-// Transfer route for AFRiErc20 and AFRiTrc20
+// Transfer route for AFRi_ERC20 and AFRi_TRC20
 router.post('/transfer', async (req, res) => {
   const { blockchain, privateKey, to, amount } = req.body || {};
   if (!blockchain || !privateKey || !to || !amount) {
@@ -183,16 +183,16 @@ router.post('/transfer', async (req, res) => {
   try {
     const normalizedChain = String(blockchain).toLowerCase();
     let txHash;
-    if (normalizedChain === 'afrierc20') {
-      if (!to.startsWith('0x')) throw new Error('AFRiErc20 transfer requires a 0x... address');
+    if (normalizedChain === 'AFRi_ERC20') {
+      if (!to.startsWith('0x')) throw new Error('AFRi_ERC20 transfer requires a 0x... address');
       const tx = await africoinService.transfer(privateKey, to, amount);
       txHash = tx.hash;
-    } else if (normalizedChain === 'afritrc20') {
-      if (!to.startsWith('T')) throw new Error('AFRiTrc20 transfer requires a T... address');
+    } else if (normalizedChain === 'AFRi_TRC20') {
+      if (!to.startsWith('T')) throw new Error('AFRi_TRC20 transfer requires a T... address');
       const tx = await TronAfricoinService.transfer(privateKey, to, amount);
       txHash = tx;
     } else {
-      return sendResponse(res, { success: false, message: 'Invalid blockchain. Use AFRiErc20 or AFRiTrc20.', data: null, status: 400 });
+      return sendResponse(res, { success: false, message: 'Invalid blockchain. Use AFRi_ERC20 or AFRi_TRC20.', data: null, status: 400 });
     }
     sendResponse(res, { success: true, message: 'Transfer successful', data: { txHash } });
   } catch (err) {
@@ -200,7 +200,7 @@ router.post('/transfer', async (req, res) => {
   }
 });
 
-// Get token balance (AFRiErc20/AFRiTrc20) via query parameters, using known Africoin contract addresses
+// Get token balance (AFRi_ERC20/AFRi_TRC20) via query parameters, using known Africoin contract addresses
 router.get('/wallet/token-balance', async (req, res) => {
   const { type, address } = req.query;
   if (!type || !address) {
@@ -209,27 +209,27 @@ router.get('/wallet/token-balance', async (req, res) => {
   try {
     const normalizedType = String(type).toLowerCase();
     let balance;
-    if (normalizedType === 'afrierc20') {
+    if (normalizedType === 'AFRi_ERC20') {
       // Use Africoin ABI and contract address from africoinService.js/env
       const { AFRICOIN_ABI } = require('../services/africoinService');
       const config = require('../config/provider');
       const contractAddress = process.env.CONTRACT_ADDRESS_ETH || config.ethereum?.contractAddress;
       if (!contractAddress) {
-        return sendResponse(res, { success: false, message: 'Africoin contract address for AFRiErc20 not set.', data: null, status: 500 });
+        return sendResponse(res, { success: false, message: 'Africoin contract address for AFRi_ERC20 not set.', data: null, status: 500 });
       }
       balance = await EthereumWalletService.getTokenBalance(address, contractAddress, AFRICOIN_ABI);
-    } else if (normalizedType === 'afritrc20') {
+    } else if (normalizedType === 'AFRi_TRC20') {
       // Use Africoin ABI and contract address from Tron config/env
       const africoinJson = require('../../../Tron-smart-contract/build/contracts/Africoin.json');
       const tokenAbi = africoinJson.abi;
       const config = require('../config/provider');
       const contractAddress = process.env.CONTRACT_ADDRESS_TRON || config.blockchain?.tronAfricoinContractAddress;
       if (!contractAddress) {
-        return sendResponse(res, { success: false, message: 'Africoin contract address for AFRiTrc20 not set.', data: null, status: 500 });
+        return sendResponse(res, { success: false, message: 'Africoin contract address for AFRi_TRC20 not set.', data: null, status: 500 });
       }
       balance = await TronWalletService.getTokenBalance(address, contractAddress, tokenAbi);
     } else {
-      return sendResponse(res, { success: false, message: 'Invalid type. Use AFRiErc20 or AFRiTrc20.', data: null, status: 400 });
+      return sendResponse(res, { success: false, message: 'Invalid type. Use AFRi_ERC20 or AFRi_TRC20.', data: null, status: 400 });
     }
     sendResponse(res, { success: true, message: 'Token balance retrieved successfully', data: { balance } });
   } catch (err) {
@@ -237,7 +237,7 @@ router.get('/wallet/token-balance', async (req, res) => {
   }
 });
 
-// Validate address for AFRiErc20 (Ethereum) and AFRiTrc20 (Tron)
+// Validate address for AFRi_ERC20 (Ethereum) and AFRi_TRC20 (Tron)
 router.get('/validate-address', async (req, res) => {
   const { type, address } = req.query || {};
   if (!type || !address) {
@@ -247,14 +247,14 @@ router.get('/validate-address', async (req, res) => {
     const normalizedType = String(type).toLowerCase();
     let isValid = false;
 
-    if (normalizedType === 'afrierc20') {
+    if (normalizedType === 'AFRi_ERC20') {
       // Validate Ethereum-format address
       const { ethers } = require('ethers');
       // Support ethers v6 (ethers.isAddress) and fallback to v5 utils if needed
       isValid = typeof ethers.isAddress === 'function'
         ? ethers.isAddress(address)
         : (ethers.utils && typeof ethers.utils.isAddress === 'function' ? ethers.utils.isAddress(address) : false);
-    } else if (normalizedType === 'afritrc20') {
+    } else if (normalizedType === 'AFRi_TRC20') {
       // Validate Tron-format address via existing TronWeb instance
       const tronWeb = TronWalletService.tronWeb;
       if (!tronWeb || typeof tronWeb.isAddress !== 'function') {
@@ -262,7 +262,7 @@ router.get('/validate-address', async (req, res) => {
       }
       isValid = tronWeb.isAddress(address);
     } else {
-      return sendResponse(res, { success: false, message: 'Invalid type. Use AFRiErc20 or AFRiTrc20.', data: null, status: 400 });
+      return sendResponse(res, { success: false, message: 'Invalid type. Use AFRi_ERC20 or AFRi_TRC20.', data: null, status: 400 });
     }
 
     // success reflects validity per request

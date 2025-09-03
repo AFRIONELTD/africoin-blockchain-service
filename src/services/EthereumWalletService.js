@@ -5,7 +5,7 @@ const logger = require('../utils/logger');
 class EthereumWalletService extends IWalletService {
   constructor() {
     super();
-    this.type = 'AFRiErc20';
+    this.type = 'AFRi_ERC20';
   }
 
   async generateWallet(options = {}) {
@@ -22,7 +22,7 @@ class EthereumWalletService extends IWalletService {
         address: wallet.address,
         publicKey: wallet.publicKey,
         network,
-        type: 'AFRiErc20',
+        type: 'AFRi_ERC20',
         mnemonic: wallet.mnemonic?.phrase || mnemonic,
         derivationPath: wallet.path,
       };

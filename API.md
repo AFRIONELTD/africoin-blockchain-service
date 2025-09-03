@@ -35,19 +35,19 @@ All responses follow this structure:
 
 **POST** `/api/africoin/mint`
 
-Mint Africoin tokens on AFRiErc20 or AFRiTrc20.
+Mint Africoin tokens on AFRi_ERC20 or AFRi_TRC20.
 
 **Body:**
 ```json
 {
-  "type": "AFRiErc20" | "AFRiTrc20",
+  "type": "AFRi_ERC20" | "AFRi_TRC20",
   "privateKey": "<signer private key>",
   "to": "<recipient address>",
   "amount": "<amount>"
 }
 ```
 
-- For AFRiTrc20, the private key should not include a leading `0x`.
+- For AFRi_TRC20, the private key should not include a leading `0x`.
 
 **Response:**
 ```json
@@ -69,13 +69,13 @@ Add an admin to the Africoin contract.
 **Body:**
 ```json
 {
-  "blockchain": "AFRiErc20" | "AFRiTrc20",
+  "blockchain": "AFRi_ERC20" | "AFRi_TRC20",
   "privateKey": "<signer private key>",
   "admin": "<admin address>"
 }
 ```
 
-- For AFRiTrc20, the private key should not include a leading `0x`.
+- For AFRi_TRC20, the private key should not include a leading `0x`.
 
 **Response:**
 ```json
@@ -127,7 +127,7 @@ Remove an admin (owner only).
 
 ---
 
-### 5. Get Africoin Token Balance (AFRiErc20 contract)
+### 5. Get Africoin Token Balance (AFRi_ERC20 contract)
 
 **GET** `/api/africoin/balance/:address`
 
@@ -146,12 +146,12 @@ Remove an admin (owner only).
 
 **POST** `/api/africoin/create-wallets`
 
-Create one or both wallets (AFRiErc20, AFRiTrc20).
+Create one or both wallets (AFRi_ERC20, AFRi_TRC20).
 
 **Body Example:**
 ```json
 {
-  "type": "AFRiErc20" | "AFRiTrc20" | null,
+  "type": "AFRi_ERC20" | "AFRi_TRC20" | null,
   "mnemonic": "<optional seed phrase>"
 }
 ```
@@ -165,7 +165,7 @@ Create one or both wallets (AFRiErc20, AFRiTrc20).
     "seedPhrase": "<mnemonic>",
     "wallets": [
       {
-        "blockchain": "AFRiErc20" | "AFRiTrc20",
+        "blockchain": "AFRi_ERC20" | "AFRi_TRC20",
         "success": true,
         "address": "<address>",
         "privateKey": "<privateKey>",
@@ -180,7 +180,7 @@ Create one or both wallets (AFRiErc20, AFRiTrc20).
 
 ### 7. Create Wallet (Single)
 
-**GET** `/api/africoin/create-wallet?type=AFRiErc20|AFRiTrc20`
+**GET** `/api/africoin/create-wallet?type=AFRi_ERC20|AFRi_TRC20`
 
 **Response:**
 ```json
@@ -191,7 +191,7 @@ Create one or both wallets (AFRiErc20, AFRiTrc20).
     "address": "<address>",
     "publicKey": "<publicKey>",
     "network": "<network>",
-    "type": "AFRiErc20" | "AFRiTrc20",
+    "type": "AFRi_ERC20" | "AFRi_TRC20",
     "mnemonic": "<mnemonic>",
     "derivationPath": "<path>",
     "privateKey": "<privateKey>" // if requested
@@ -210,7 +210,7 @@ Transfer Africoin tokens.
 **Body:**
 ```json
 {
-  "blockchain": "AFRiErc20" | "AFRiTrc20",
+  "blockchain": "AFRi_ERC20" | "AFRi_TRC20",
   "privateKey": "<sender private key>",
   "to": "<recipient address>",
   "amount": "<amount>"
@@ -228,12 +228,12 @@ Transfer Africoin tokens.
 
 ---
 
-### 9. Get Africoin Token Balance (AFRiErc20 or AFRiTrc20)
+### 9. Get Africoin Token Balance (AFRi_ERC20 or AFRi_TRC20)
 
-**GET** `/api/africoin/wallet/token-balance?type=AFRiErc20|AFRiTrc20&address=<wallet-address>`
+**GET** `/api/africoin/wallet/token-balance?type=AFRi_ERC20|AFRi_TRC20&address=<wallet-address>`
 
 **Query Parameters:**
-- `type`: `AFRiErc20` or `AFRiTrc20`
+- `type`: `AFRi_ERC20` or `AFRi_TRC20`
 - `address`: wallet address
 
 **Response:**
@@ -249,12 +249,12 @@ Transfer Africoin tokens.
 
 ### 10. Validate Address
 
-**GET** `/api/africoin/validate-address?type=AFRiErc20|AFRiTrc20&address=<address>`
+**GET** `/api/africoin/validate-address?type=AFRi_ERC20|AFRi_TRC20&address=<address>`
 
 Validates a wallet address for the specified type.
 
-- `AFRiErc20`: Ethereum address validation
-- `AFRiTrc20`: Tron address validation
+- `AFRi_ERC20`: Ethereum address validation
+- `AFRi_TRC20`: Tron address validation
 
 **Response (valid):**
 ```json
@@ -280,7 +280,7 @@ Validates a wallet address for the specified type.
 
 ```sh
 curl -H "Authorization: Bearer <your-token>" \
-  "http://localhost:3000/api/africoin/wallet/token-balance?type=AFRiTrc20&address=TQz44WVMq7jyy8oJuiq9USDBKgzubP9DDJ"
+  "http://localhost:3000/api/africoin/wallet/token-balance?type=AFRi_TRC20&address=TQz44WVMq7jyy8oJuiq9USDBKgzubP9DDJ"
 ```
 
 ---

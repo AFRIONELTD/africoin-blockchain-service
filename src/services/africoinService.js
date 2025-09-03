@@ -15,13 +15,13 @@ const AFRICOIN_ABI = [
   "function transfer(address to, uint256 amount) public returns (bool)"
 ];
 
-// Use the correct env variable for AFRiErc20 (Ethereum)
+// Use the correct env variable for AFRi_ERC20 (Ethereum)
 const contractAddress = process.env.CONTRACT_ADDRESS_ETH;
 const privateKey = process.env.PRIVATE_KEY;
 
-console.log('AFRiErc20 contract address:', contractAddress); // Debug log
+console.log('AFRi_ERC20 contract address:', contractAddress); // Debug log
 if (!contractAddress) {
-  throw new Error('Missing CONTRACT_ADDRESS_ETH for AFRiErc20 in environment. Please set it in your .env file.');
+  throw new Error('Missing CONTRACT_ADDRESS_ETH for AFRi_ERC20 in environment. Please set it in your .env file.');
 }
 
 const wallet = new ethers.Wallet(privateKey, provider);
