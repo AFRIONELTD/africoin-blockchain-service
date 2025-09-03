@@ -20,7 +20,7 @@ const config = require('../config/provider');
 require('dotenv').config();
 
 const tronNode = process.env.TRON_RPC_URL || config.blockchain.tronRpcUrl;
-const rawPrivateKey = process.env.PRIVATE_KEY_SHASTA || process.env.PRIVATE_KEY_TRON || process.env.PRIVATE_KEY;
+const rawPrivateKey = process.env.COMPANY_TRON_PRIVATE_KEY; // optional default signer for TRON
 // Remove 0x prefix for Tron private key if present
 const privateKey = rawPrivateKey && rawPrivateKey.startsWith('0x') ? rawPrivateKey.slice(2) : rawPrivateKey;
 const contractAddress = process.env.CONTRACT_ADDRESS_TRON;
