@@ -279,4 +279,52 @@ router.get('/validate-address', async (req, res) => {
   }
 });
 
+// Get multiple token balances in one request
+// Query format: /wallet/token-balances?AFRi_ERC20=0x...&AFRi_TRC20=T...
+router.get('/wallet/token-balances', async (req, res) => {
+  const { AFRi_ERC20, AFRi_TRC20 } = req.query || {};
+  if (!AFRi_ERC20 && !AFRi_TRC20) {
+    return sendResponse(res, { success: false, message: 'Provide at least one of AFRi_ERC20 or AFRi_TRC20 addresses as query parameters.', data: null, status: 400 });
+  }
+
+  const data = {};
+  const errors = [];
+  const config = require('../config/provider');
+
+  // ETH (AFRi_ERC20)
+  if (AFRi_ERC20) {
+    try {
+      const { AFRICOIN_ABI } = require('../services/africoinService');
+      const contractAddress = process.env.CONTRACT_ADDRESS_ETH || config.ethereum?.contractAddress;
+      if (!contractAddress) {
+        throw new Error('Africoin contract address for AFRi_ERC20 not set.');
+      }
+      const balance = await EthereumWalletService.getTokenBalance(AFRi_ERC20, contractAddress, AFRICOIN_ABI);
+      data.AFRi_ERC20 = { address: AFRi_ERC20, balance };
+    } catch (err) {
+      errors.push(`AFRi_ERC20: ${err.message}`);
+    }
+  }
+
+  // TRON (AFRi_TRC20)
+  if (AFRi_TRC20) {
+    try {
+      const africoinJson = require('../abi/tron/africoin.json');
+      const tokenAbi = africoinJson.abi;
+      const contractAddress = process.env.CONTRACT_ADDRESS_TRON || config.blockchain?.tronAfricoinContractAddress;
+      if (!contractAddress) {
+        throw new Error('Africoin contract address for AFRi_TRC20 not set.');
+      }
+      const balance = await TronWalletService.getTokenBalance(AFRi_TRC20, contractAddress, tokenAbi);
+      data.AFRi_TRC20 = { address: AFRi_TRC20, balance };
+    } catch (err) {
+      errors.push(`AFRi_TRC20: ${err.message}`);
+    }
+  }
+
+  const success = errors.length === 0;
+  const message = success ? 'Token balances retrieved successfully' : `Some balances failed: ${errors.join('; ')}`;
+  return sendResponse(res, { success, message, data });
+});
+
 module.exports = router;
