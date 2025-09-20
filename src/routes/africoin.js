@@ -178,7 +178,8 @@ router.get('/create-wallet', async (req, res) => {
   }
 });
 
-// Transfer route for AFRi_ERC20 and AFRi_TRC20
+// Transfer route - uses meta-transfer for Tron (reverted from direct transfer)
+// Request body: { blockchain, privateKey, to, amount }
 router.post('/transfer', async (req, res) => {
   const { blockchain, privateKey, to, amount } = req.body || {};
   if (!blockchain || !privateKey || !to || !amount) {
@@ -187,18 +188,22 @@ router.post('/transfer', async (req, res) => {
   try {
     const normalizedChain = String(blockchain).toUpperCase();
     let txHash;
+
     if (normalizedChain === 'AFRI_ERC20') {
       if (!to.startsWith('0x')) throw new Error('AFRi_ERC20 transfer requires a 0x... address');
-      const tx = await africoinService.transfer(privateKey, to, amount);
-      txHash = tx.hash;
+      // Perform meta-transfer automatically using provided privateKey
+      const tx = await africoinService.metaTransferAuto(privateKey, to, amount);
+      txHash = tx.hash ?? tx?.transactionHash ?? tx;
     } else if (normalizedChain === 'AFRI_TRC20') {
       if (!to.startsWith('T')) throw new Error('AFRi_TRC20 transfer requires a T... address');
-      const tx = await TronAfricoinService.transfer(privateKey, to, amount);
+      // Perform meta-transfer automatically (user signs, company pays gas)
+      const tx = await TronAfricoinService.metaTransferAuto(privateKey, to, amount);
       txHash = tx;
     } else {
       return sendResponse(res, { success: false, message: 'Invalid blockchain. Use AFRi_ERC20 or AFRi_TRC20.', data: null, status: 400 });
     }
-    sendResponse(res, { success: true, message: 'Transfer successful', data: { txHash } });
+
+    sendResponse(res, { success: true, message: 'Transfer Successful', data: { txHash } });
   } catch (err) {
     sendResponse(res, { success: false, message: err.message, data: null, status: 500 });
   }
@@ -325,6 +330,73 @@ router.get('/wallet/token-balances', async (req, res) => {
   const success = errors.length === 0;
   const message = success ? 'Token balances retrieved successfully' : `Some balances failed: ${errors.join('; ')}`;
   return sendResponse(res, { success, message, data });
+});
+
+// Gas fees estimation endpoint
+// GET /api/africoin/gas-fees?blockchain=AFRi_ERC20|AFRi_TRC20
+router.get('/gas-fees', async (req, res) => {
+  try {
+    const { blockchain } = req.query || {};
+    if (!blockchain) {
+      return sendResponse(res, { success: false, message: 'blockchain query param is required (AFRi_ERC20 or AFRi_TRC20)', data: null, status: 400 });
+    }
+
+    const kind = String(blockchain).toUpperCase();
+    if (kind !== 'AFRI_ERC20' && kind !== 'AFRI_TRC20') {
+      return sendResponse(res, { success: false, message: 'Unsupported blockchain. Use AFRi_ERC20 or AFRi_TRC20', data: null, status: 400 });
+    }
+
+    // ETH estimation using Etherscan gas oracle (if ETHERSCAN_API_KEY set), with fallback defaults
+    async function getEthereumGasFees() {
+      const gweiToEth = (g) => Number(g) * 1e-9;
+      try {
+        const apiKey = process.env.ETHERSCAN_API_KEY || 'YourApiKeyToken';
+        const url = `https://api.etherscan.io/api?module=gastracker&action=gasoracle&apikey=${apiKey}`;
+        const resp = await fetch(url);
+        const data = await resp.json();
+        if (!data || data.status !== '1') throw new Error(data?.message || 'Etherscan error');
+        const r = data.result;
+        const baseFee = gweiToEth(parseFloat(r.suggestBaseFee));
+        const low = baseFee + gweiToEth(parseFloat(r.SafeGasPrice));
+        const medium = baseFee + gweiToEth(parseFloat(r.ProposeGasPrice));
+        const high = baseFee + gweiToEth(parseFloat(r.FastGasPrice));
+        return { blockchain: 'ETH', unit: 'ETH', fees: { low: { totalFee: low }, medium: { totalFee: medium }, high: { totalFee: high } } };
+      } catch (_) {
+        // Fallback static values in ETH
+        const baseFee = gweiToEth(30);
+        const low = baseFee + gweiToEth(35);
+        const medium = baseFee + gweiToEth(40);
+        const high = baseFee + gweiToEth(50);
+        return { blockchain: 'ETH', unit: 'ETH', fees: { low: { totalFee: low }, medium: { totalFee: medium }, high: { totalFee: high } } };
+      }
+    }
+
+    // TRON estimation: static presets, matching your sample
+    async function getTronGasFees() {
+      return {
+        blockchain: 'TRX',
+        unit: 'TRX',
+        fees: {
+          low: { totalFee: 0.3 },
+          medium: { totalFee: 0.4 },
+          high: { totalFee: 0.4 },
+          urgent: { totalFee: 0.4 }
+        }
+      };
+    }
+
+    // Map AFRi_* to base networks
+    let result;
+    if (kind === 'AFRI_ERC20') {
+      result = await getEthereumGasFees();
+    } else {
+      result = await getTronGasFees();
+    }
+
+    return sendResponse(res, { success: true, message: 'Gas fees fetched', data: result });
+  } catch (err) {
+    return sendResponse(res, { success: false, message: err.message, data: null, status: 500 });
+  }
 });
 
 module.exports = router;
