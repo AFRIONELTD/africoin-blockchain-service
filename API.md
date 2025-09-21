@@ -285,6 +285,40 @@ curl -H "Authorization: Bearer <your-token>" \
 
 ---
 
+### 11. Get Multiple Wallet Token Balances
+
+**GET** `/api/africoin/wallet/token-balances?AFRi_ERC20=0x...&AFRi_TRC20=T...`
+
+Fetch balances for one or both chains in a single request.
+
+- Provide at least one of the query parameters.
+- Balances are returned in raw token units (as strings).
+
+**Response (both present):**
+```json
+{
+  "success": true,
+  "message": "Token balances retrieved successfully",
+  "data": {
+    "AFRi_ERC20": { "address": "0x...", "balance": "..." },
+    "AFRi_TRC20": { "address": "T...", "balance": "..." }
+  }
+}
+```
+
+**Partial failure example:**
+```json
+{
+  "success": false,
+  "message": "Some balances failed: AFRi_TRC20: <error>",
+  "data": {
+    "AFRi_ERC20": { "address": "0x...", "balance": "..." }
+  }
+}
+```
+
+---
+
 ## Error Responses
 
 All errors follow this format:
