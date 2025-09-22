@@ -40,7 +40,7 @@ Mint Africoin tokens on AFRi_ERC20 or AFRi_TRC20.
 **Body:**
 ```json
 {
-  "type": "AFRi_ERC20" | "AFRi_TRC20",
+  "blockchain": "AFRi_ERC20" | "AFRi_TRC20",
   "privateKey": "<signer private key>",
   "to": "<recipient address>",
   "amount": "<amount>"
@@ -92,7 +92,7 @@ Add an admin to the Africoin contract.
 
 **POST** `/api/africoin/remove-admin`
 
-Remove an admin (owner only).
+Remove an admin (owner only, AFRi_ERC20 only).
 
 **Body:**
 ```json
@@ -116,6 +116,8 @@ Remove an admin (owner only).
 
 **GET** `/api/africoin/is-admin/:address`
 
+(AFRi_ERC20 only)
+
 **Response:**
 ```json
 {
@@ -127,7 +129,7 @@ Remove an admin (owner only).
 
 ---
 
-### 5. Get Africoin Token Balance (AFRi_ERC20 contract)
+### 5. Get Africoin Token Balance (AFRi_ERC20 only)
 
 **GET** `/api/africoin/balance/:address`
 
@@ -230,10 +232,10 @@ Transfer Africoin tokens.
 
 ### 9. Get Africoin Token Balance (AFRi_ERC20 or AFRi_TRC20)
 
-**GET** `/api/africoin/wallet/token-balance?type=AFRi_ERC20|AFRi_TRC20&address=<wallet-address>`
+**GET** `/api/africoin/wallet/token-balance?blockchain=AFRi_ERC20|AFRi_TRC20&address=<wallet-address>`
 
 **Query Parameters:**
-- `type`: `AFRi_ERC20` or `AFRi_TRC20`
+- `blockchain`: `AFRi_ERC20` or `AFRi_TRC20`
 - `address`: wallet address
 
 **Response:**
@@ -249,9 +251,9 @@ Transfer Africoin tokens.
 
 ### 10. Validate Address
 
-**GET** `/api/africoin/validate-address?type=AFRi_ERC20|AFRi_TRC20&address=<address>`
+**GET** `/api/africoin/validate-address?blockchain=AFRi_ERC20|AFRi_TRC20&address=<address>`
 
-Validates a wallet address for the specified type.
+Validates a wallet address for the specified blockchain.
 
 - `AFRi_ERC20`: Ethereum address validation
 - `AFRi_TRC20`: Tron address validation
@@ -285,7 +287,7 @@ Burn Africoin tokens on AFRi_ERC20 or AFRi_TRC20.
 {
   "blockchain": "AFRi_ERC20" | "AFRi_TRC20",
   "privateKey": "<signer private key>",
-  "to": "<recipient address>",
+  "from": "<address to burn tokens from>",
   "amount": "<amount>"
 }
 ```

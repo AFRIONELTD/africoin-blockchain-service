@@ -43,23 +43,23 @@ router.post('/mint', async (req, res) => {
 
 // Burn tokens (AFRi_ERC20 or AFRi_TRC20)
 router.post('/burn', async (req, res) => {
-  const { blockchain, privateKey, to, amount } = req.body || {};
-  if (!blockchain || !privateKey || !to || !amount) {
-    return sendResponse(res, { success: false, message: 'blockchain, privateKey, to, and amount are required.', data: null, status: 400 });
+  const { blockchain, privateKey, from, amount } = req.body || {};
+  if (!blockchain || !privateKey || !from || !amount) {
+    return sendResponse(res, { success: false, message: 'blockchain, privateKey, from, and amount are required.', data: null, status: 400 });
   }
   try {
     const normalizedChain = String(blockchain).toUpperCase();
     let txHash;
     let explorerUrl;
     if (normalizedChain === 'AFRI_ERC20') {
-      if (!to.startsWith('0x')) throw new Error('AFRi_ERC20 burn requires a 0x... address for to');
-      const tx = await africoinService.burn(privateKey, to, amount);
+      if (!from.startsWith('0x')) throw new Error('AFRi_ERC20 burn requires a 0x... address for from');
+      const tx = await africoinService.burn(privateKey, from, amount);
       txHash = tx.hash;
       explorerUrl = process.env.NODE_ENV === 'test' ? `https://sepolia.etherscan.io/tx/${txHash}` : `https://etherscan.io/tx/${txHash}`;
     } else if (normalizedChain === 'AFRI_TRC20') {
-      if (!to.startsWith('T')) throw new Error('AFRi_TRC20 burn requires a T... address for to');
+      if (!from.startsWith('T')) throw new Error('AFRi_TRC20 burn requires a T... address for from');
       const cleanPk = privateKey.startsWith('0x') ? privateKey.slice(2) : privateKey; // Tron expects raw hex
-      const tx = await TronAfricoinService.burn(cleanPk, to, amount);
+      const tx = await TronAfricoinService.burn(cleanPk, from, amount);
       txHash = tx;
       explorerUrl = process.env.NODE_ENV === 'test' ? `https://shasta.tronscan.org/#/transaction/${txHash}` : `https://tronscan.org/#/transaction/${txHash}`;
     } else {
