@@ -14,6 +14,7 @@ try {
   } catch (_) {
     AFRICOIN_ABI = [
       "function mint(address to, uint256 amount) public",
+      "function burnFrom(address account, uint256 amount) public",
       "function addAdmin(address admin) public",
       "function removeAdmin(address admin) public",
       "function isAdmin(address admin) public view returns (bool)",
@@ -55,6 +56,13 @@ async function mint(privateKey, to, amount) {
   return africoinWithSigner.mint(to, amountWei);
 }
 
+async function burn(privateKey, from, amount) {
+  const amountWei = ethers.parseUnits(amount.toString(), 18);
+  const wallet = new ethers.Wallet(privateKey, provider);
+  const africoinWithSigner = new ethers.Contract(contractAddress, AFRICOIN_ABI, wallet);
+  return africoinWithSigner.burnFrom(from, amountWei);
+}
+
 async function addAdmin(privateKey, admin) {
   const wallet = new ethers.Wallet(privateKey, provider);
   const africoinWithSigner = new ethers.Contract(contractAddress, AFRICOIN_ABI, wallet);
@@ -83,6 +91,22 @@ async function getUserNonce(userAddress) {
 async function getBalance(address) {
   const balance = await africoin.balanceOf(address);
   return ethers.formatUnits(balance, 18);
+}
+
+async function getGasFee(type) {
+  const feeData = await provider.getFeeData();
+  let gasPrice;
+  if (type === 'low') {
+    gasPrice = feeData.gasPrice || feeData.maxFeePerGas;
+  } else if (type === 'medium') {
+    gasPrice = (feeData.maxFeePerGas || feeData.gasPrice) * 2n / 3n + (feeData.maxPriorityFeePerGas || 0n);
+  } else if (type === 'high') {
+    gasPrice = (feeData.maxFeePerGas || feeData.gasPrice) + (feeData.maxPriorityFeePerGas || 0n);
+  } else {
+    throw new Error('Invalid type. Use low, medium, or high.');
+  }
+  // Return in gwei
+  return ethers.formatUnits(gasPrice, 'gwei');
 }
 
 // Legacy direct transfer kept for compatibility (non-meta)
@@ -243,10 +267,12 @@ async function metaTransferAuto(privateKey, to, amount, bufferBps = 1000) { // 1
 
 module.exports = {
   mint,
+  burn,
   addAdmin,
   removeAdmin,
   isAdmin,
   getBalance,
+  getGasFee,
   transfer,
   metaTransfer,
   metaTransferAuto,

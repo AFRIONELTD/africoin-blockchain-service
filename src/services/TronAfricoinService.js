@@ -175,6 +175,57 @@ async function mint(privateKey, to, amount) {
   }
 }
 
+async function burn(privateKey, from, amount) {
+  try {
+    // Validate inputs
+    if (!privateKey || typeof privateKey !== 'string') {
+      throw new Error('Invalid private key provided');
+    }
+    if (!from || typeof from !== 'string') {
+      throw new Error('Invalid from address provided');
+    }
+    if (!amount || isNaN(amount)) {
+      throw new Error('Invalid amount provided');
+    }
+    
+    // Clean private key
+    const cleanPrivateKey = privateKey.startsWith('0x') ? privateKey.slice(2) : privateKey;
+    
+    // Validate private key length
+    if (cleanPrivateKey.length !== 64) {
+      throw new Error('Invalid private key length. Expected 64 hex characters.');
+    }
+    
+    const tronNode = process.env.TRON_RPC_URL || config.blockchain.tronRpcUrl;
+    const tw = new TronWeb({ 
+      fullHost: tronNode, 
+      privateKey: cleanPrivateKey 
+    });
+    
+    // Validate from address
+    if (!tw.isAddress(from)) {
+      throw new Error('Invalid Tron address format for from');
+    }
+    
+    const contract = await tw.contract(africoinAbi, contractAddress);
+    
+    const fromHex = TronWeb.address.toHex(from);
+    console.log('Burn - From hex:', fromHex);
+
+    const sendRes = await contract.burnFrom(fromHex, ethers.parseUnits(amount.toString(), 18).toString()).send({
+      feeLimit: 1000000000, // 1000 TRX fee limit
+      callValue: 0,
+      shouldPollResponse: false
+    });
+    
+    const txId = extractTronTxId(sendRes);
+    return txId || sendRes;
+  } catch (err) {
+    console.error('Tron burn error details:', err);
+    throw new Error('Tron burn failed: ' + err.message);
+  }
+}
+
 // Meta-transfer for Tron TRC20 (contract must expose compatible method)
 async function transferMeta({ from, to, amount, nonce, deadline, gasCostUSD, signature }) {
   try {
@@ -290,6 +341,21 @@ async function getUserNonce(userAddress) {
     console.log('Unexpected error fetching nonce, using nonce 0:', error.message);
     return 0;
   }
+}
+
+async function getGasFee(type) {
+  // Tron uses energy and bandwidth, but for simplicity, return fee limit in TRX
+  let fee;
+  if (type === 'low') {
+    fee = 10; // 10 TRX
+  } else if (type === 'medium') {
+    fee = 50; // 50 TRX
+  } else if (type === 'high') {
+    fee = 100; // 100 TRX
+  } else {
+    throw new Error('Invalid type. Use low, medium, or high.');
+  }
+  return fee.toString();
 }
 
 // Helper function to send TRX for account activation
@@ -1218,7 +1284,10 @@ async function testTransferWithActivation() {
 }
 
 module.exports = {
+  mint,
+  burn,
   addAdmin,
+  getGasFee,
   transferMeta,
   metaTransferAuto,
   transfer,

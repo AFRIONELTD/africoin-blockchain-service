@@ -20,19 +20,52 @@ router.post('/mint', async (req, res) => {
   try {
     const normalizedType = String(kind).toUpperCase();
     let txHash;
+    let explorerUrl;
     if (normalizedType === 'AFRI_ERC20') {
       if (!to.startsWith('0x')) throw new Error('AFRi_ERC20 mint requires a 0x... address');
       const tx = await africoinService.mint(privateKey, to, amount);
       txHash = tx.hash;
+      explorerUrl = process.env.NODE_ENV === 'test' ? `https://sepolia.etherscan.io/tx/${txHash}` : `https://etherscan.io/tx/${txHash}`;
     } else if (normalizedType === 'AFRI_TRC20') {
       if (!to.startsWith('T')) throw new Error('AFRi_TRC20 mint requires a T... address');
       const cleanPk = privateKey.startsWith('0x') ? privateKey.slice(2) : privateKey; // Tron expects raw hex
       const tx = await TronAfricoinService.mint(cleanPk, to, amount);
       txHash = tx;
+      explorerUrl = process.env.NODE_ENV === 'test' ? `https://shasta.tronscan.org/#/transaction/${txHash}` : `https://tronscan.org/#/transaction/${txHash}`;
     } else {
       return sendResponse(res, { success: false, message: 'Invalid type. Use AFRi_ERC20 or AFRi_TRC20.', data: null, status: 400 });
     }
-    sendResponse(res, { success: true, message: 'Mint successful', data: { txHash } });
+    sendResponse(res, { success: true, message: 'Mint successful', data: { txHash, explorerUrl } });
+  } catch (err) {
+    sendResponse(res, { success: false, message: err.message, data: null, status: 500 });
+  }
+});
+
+// Burn tokens (AFRi_ERC20 or AFRi_TRC20)
+router.post('/burn', async (req, res) => {
+  const { blockchain, privateKey, to, amount } = req.body || {};
+  if (!blockchain || !privateKey || !to || !amount) {
+    return sendResponse(res, { success: false, message: 'blockchain, privateKey, to, and amount are required.', data: null, status: 400 });
+  }
+  try {
+    const normalizedChain = String(blockchain).toUpperCase();
+    let txHash;
+    let explorerUrl;
+    if (normalizedChain === 'AFRI_ERC20') {
+      if (!to.startsWith('0x')) throw new Error('AFRi_ERC20 burn requires a 0x... address for to');
+      const tx = await africoinService.burn(privateKey, to, amount);
+      txHash = tx.hash;
+      explorerUrl = process.env.NODE_ENV === 'test' ? `https://sepolia.etherscan.io/tx/${txHash}` : `https://etherscan.io/tx/${txHash}`;
+    } else if (normalizedChain === 'AFRI_TRC20') {
+      if (!to.startsWith('T')) throw new Error('AFRi_TRC20 burn requires a T... address for to');
+      const cleanPk = privateKey.startsWith('0x') ? privateKey.slice(2) : privateKey; // Tron expects raw hex
+      const tx = await TronAfricoinService.burn(cleanPk, to, amount);
+      txHash = tx;
+      explorerUrl = process.env.NODE_ENV === 'test' ? `https://shasta.tronscan.org/#/transaction/${txHash}` : `https://tronscan.org/#/transaction/${txHash}`;
+    } else {
+      return sendResponse(res, { success: false, message: 'Invalid blockchain. Use AFRi_ERC20 or AFRi_TRC20.', data: null, status: 400 });
+    }
+    sendResponse(res, { success: true, message: 'Burn successful', data: { txHash, explorerUrl } });
   } catch (err) {
     sendResponse(res, { success: false, message: err.message, data: null, status: 500 });
   }
@@ -48,17 +81,20 @@ router.post('/add-admin', async (req, res) => {
   try {
     const normalizedChain = String(kind).toUpperCase();
     let txHash;
+    let explorerUrl;
     if (normalizedChain === 'AFRI_ERC20') {
       const tx = await africoinService.addAdmin(privateKey, admin);
       txHash = tx.hash;
+      explorerUrl = process.env.NODE_ENV === 'test' ? `https://sepolia.etherscan.io/tx/${txHash}` : `https://etherscan.io/tx/${txHash}`;
     } else if (normalizedChain === 'AFRI_TRC20') {
       const cleanPk = privateKey; // Tron expects raw hex
       const tx = await TronAfricoinService.addAdmin(cleanPk, admin);
       txHash = tx;
+      explorerUrl = process.env.NODE_ENV === 'test' ? `https://shasta.tronscan.org/#/transaction/${txHash}` : `https://tronscan.org/#/transaction/${txHash}`;
     } else {
       return sendResponse(res, { success: false, message: 'Invalid blockchain. Use AFRi_ERC20 or AFRi_TRC20.', data: null, status: 400 });
     }
-    sendResponse(res, { success: true, message: 'Admin added successfully', data: { txHash } });
+    sendResponse(res, { success: true, message: 'Admin added successfully', data: { txHash, explorerUrl } });
   } catch (err) {
     sendResponse(res, { success: false, message: err.message, data: null, status: 500 });
   }
@@ -69,7 +105,8 @@ router.post('/remove-admin', async (req, res) => {
   const { admin } = req.body;
   try {
     const tx = await africoinService.removeAdmin(admin);
-    sendResponse(res, { success: true, message: 'Admin removed successfully', data: { txHash: tx.hash } });
+    const explorerUrl = process.env.NODE_ENV === 'test' ? `https://sepolia.etherscan.io/tx/${tx.hash}` : `https://etherscan.io/tx/${tx.hash}`;
+    sendResponse(res, { success: true, message: 'Admin removed successfully', data: { txHash: tx.hash, explorerUrl } });
   } catch (err) {
     sendResponse(res, { success: false, message: err.message, data: null, status: 400 });
   }
@@ -188,22 +225,25 @@ router.post('/transfer', async (req, res) => {
   try {
     const normalizedChain = String(blockchain).toUpperCase();
     let txHash;
+    let explorerUrl;
 
     if (normalizedChain === 'AFRI_ERC20') {
       if (!to.startsWith('0x')) throw new Error('AFRi_ERC20 transfer requires a 0x... address');
       // Perform meta-transfer automatically using provided privateKey
       const tx = await africoinService.metaTransferAuto(privateKey, to, amount);
       txHash = tx.hash ?? tx?.transactionHash ?? tx;
+      explorerUrl = process.env.NODE_ENV === 'test' ? `https://sepolia.etherscan.io/tx/${txHash}` : `https://etherscan.io/tx/${txHash}`;
     } else if (normalizedChain === 'AFRI_TRC20') {
       if (!to.startsWith('T')) throw new Error('AFRi_TRC20 transfer requires a T... address');
       // Perform meta-transfer automatically (user signs, company pays gas)
       const tx = await TronAfricoinService.metaTransferAuto(privateKey, to, amount);
       txHash = tx;
+      explorerUrl = process.env.NODE_ENV === 'test' ? `https://shasta.tronscan.org/#/transaction/${txHash}` : `https://tronscan.org/#/transaction/${txHash}`;
     } else {
       return sendResponse(res, { success: false, message: 'Invalid blockchain. Use AFRi_ERC20 or AFRi_TRC20.', data: null, status: 400 });
     }
 
-    sendResponse(res, { success: true, message: 'Transfer Successful', data: { txHash } });
+    sendResponse(res, { success: true, message: 'Transfer Successful', data: { txHash, explorerUrl } });
   } catch (err) {
     sendResponse(res, { success: false, message: err.message, data: null, status: 500 });
   }
@@ -241,6 +281,29 @@ router.get('/wallet/token-balance', async (req, res) => {
       return sendResponse(res, { success: false, message: 'Invalid type. Use AFRi_ERC20 or AFRi_TRC20.', data: null, status: 400 });
     }
     sendResponse(res, { success: true, message: 'Token balance retrieved successfully', data: { balance } });
+  } catch (err) {
+    sendResponse(res, { success: false, message: err.message, data: null, status: 500 });
+  }
+});
+
+// Get gas fee estimate (AFRi_ERC20 or AFRi_TRC20)
+router.get('/gas-fee', async (req, res) => {
+  const { blockchain, type } = req.query || {};
+  if (!blockchain || !type) {
+    return sendResponse(res, { success: false, message: 'blockchain and type are required as query parameters.', data: null, status: 400 });
+  }
+  try {
+    const normalizedChain = String(blockchain).toUpperCase();
+    const normalizedType = String(type).toLowerCase();
+    let gasFee;
+    if (normalizedChain === 'AFRI_ERC20') {
+      gasFee = await africoinService.getGasFee(normalizedType);
+    } else if (normalizedChain === 'AFRI_TRC20') {
+      gasFee = await TronAfricoinService.getGasFee(normalizedType);
+    } else {
+      return sendResponse(res, { success: false, message: 'Invalid blockchain. Use AFRi_ERC20 or AFRi_TRC20.', data: null, status: 400 });
+    }
+    sendResponse(res, { success: true, message: 'Gas fee retrieved successfully', data: { gasFee } });
   } catch (err) {
     sendResponse(res, { success: false, message: err.message, data: null, status: 500 });
   }
