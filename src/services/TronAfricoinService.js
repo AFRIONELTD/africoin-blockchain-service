@@ -161,7 +161,7 @@ async function mint(privateKey, to, amount) {
     const toHex = TronWeb.address.toHex(to);
     console.log('Mint - To hex:', toHex);
 
-    const sendRes = await contract.mint(toHex, amount).send({
+    const sendRes = await contract.mint(toHex, ethers.parseUnits(amount.toString(), 18).toString()).send({
       feeLimit: 1000000000, // 1000 TRX fee limit
       callValue: 0,
       shouldPollResponse: false
@@ -181,6 +181,8 @@ async function transferMeta({ from, to, amount, nonce, deadline, gasCostUSD, sig
     if (!from || !to || !amount || nonce === undefined || !deadline || !gasCostUSD || !signature) {
       throw new Error('Missing required meta-transfer fields');
     }
+
+    const amountWei = ethers.parseUnits(amount.toString(), 18).toString();
 
     const tronNode = process.env.TRON_RPC_URL || config.blockchain.tronRpcUrl;
     const companyPrivateKey = process.env.COMPANY_TRON_PRIVATE_KEY;
@@ -221,7 +223,7 @@ async function transferMeta({ from, to, amount, nonce, deadline, gasCostUSD, sig
       throw new Error(`Invalid signature length: ${sigForContract.length}, expected 132 (0x + 65 bytes)`);
     }
 
-    const sendRes = await contract.metaTransfer(fromHex, toHex, amount, nonce, deadline, gasCostUSD, sigForContract).send({
+    const sendRes = await contract.metaTransfer(fromHex, toHex, amountWei, nonce, deadline, gasCostUSD, sigForContract).send({
       feeLimit: 1000000000,
       callValue: 0,
       shouldPollResponse: false
@@ -399,6 +401,8 @@ async function waitForTransactionConfirmation(txId, maxWaitSeconds = 30) {
 async function metaTransferAuto(privateKey, to, amount, bufferBps = 1000) { // 1000 = +10%
   try {
     if (!privateKey || !to || !amount) throw new Error('privateKey, to, and amount are required');
+
+    const amountWei = ethers.parseUnits(amount.toString(), 18);
 
     const cleanPrivateKey = privateKey.startsWith('0x') ? privateKey.slice(2) : privateKey;
     if (cleanPrivateKey.length !== 64) {
@@ -614,7 +618,7 @@ async function metaTransferAuto(privateKey, to, amount, bufferBps = 1000) { // 1
     const value = {
       from: from0x,
       to: to0x,
-      amount: BigInt(amount),
+      amount: BigInt(amountWei),
       nonce: BigInt(nonce),
       deadline: BigInt(deadline),
       gasCostUSD: BigInt(gasCostUSD)
@@ -675,7 +679,7 @@ async function metaTransferAuto(privateKey, to, amount, bufferBps = 1000) { // 1
         console.log('📊 Parameters:');
         console.log(`   - from: ${from} (hex: ${fromHex})`);
         console.log(`   - to: ${to} (hex: ${toHex})`);
-        console.log(`   - amount: ${amount}`);
+        console.log(`   - amount: ${amountWei.toString()}`);
         console.log(`   - nonce: ${currentNonce}`);
         console.log(`   - deadline: ${deadline}`);
         console.log(`   - gasCostUSD: ${gasCostUSD}`);
@@ -705,13 +709,13 @@ async function metaTransferAuto(privateKey, to, amount, bufferBps = 1000) { // 1
         const sendRes = await contract.metaTransfer(
           fromHex,
           toHex,
-          amount, // string is fine for uint256
+          amountWei.toString(), // string is fine for uint256
           BigInt(currentNonce),
           BigInt(deadline),
           gasCostUSD, // BigInt
           sigForContract
         ).send({
-          feeLimit: 20000000, // Increased to 20 TRX to handle energy costs
+          feeLimit: 100000000, // Increased to 100 TRX to handle energy costs for larger amount data
           callValue: 0,
           shouldPollResponse: false
         });
@@ -915,10 +919,10 @@ async function transfer(privateKey, to, amount) {
     const toHex = TronWeb.address.toHex(to);
     console.log('Transfer - To hex:', toHex);
 
-    // Use very high feeLimit to ensure sufficient energy (20 TRX)
+    // Use very high feeLimit to ensure sufficient energy (100 TRX)
     console.log('🔄 Executing transfer with high energy allocation...');
-    const sendRes = await contract.transfer(toHex, amount).send({
-      feeLimit: 20000000, // Increased to 20 TRX to cover all energy costs
+    const sendRes = await contract.transfer(toHex, ethers.parseUnits(amount.toString(), 18).toString()).send({
+      feeLimit: 100000000, // Increased to 100 TRX to cover all energy costs for larger amount data
       callValue: 0,
       shouldPollResponse: false
     });
