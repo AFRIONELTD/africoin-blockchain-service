@@ -20,19 +20,52 @@ router.post('/mint', async (req, res) => {
   try {
     const normalizedType = String(kind).toUpperCase();
     let txHash;
+    let explorerUrl;
     if (normalizedType === 'AFRI_ERC20') {
       if (!to.startsWith('0x')) throw new Error('AFRi_ERC20 mint requires a 0x... address');
       const tx = await africoinService.mint(privateKey, to, amount);
       txHash = tx.hash;
+      explorerUrl = process.env.NODE_ENV === 'test' ? `https://sepolia.etherscan.io/tx/${txHash}` : `https://etherscan.io/tx/${txHash}`;
     } else if (normalizedType === 'AFRI_TRC20') {
       if (!to.startsWith('T')) throw new Error('AFRi_TRC20 mint requires a T... address');
       const cleanPk = privateKey.startsWith('0x') ? privateKey.slice(2) : privateKey; // Tron expects raw hex
       const tx = await TronAfricoinService.mint(cleanPk, to, amount);
       txHash = tx;
+      explorerUrl = process.env.NODE_ENV === 'test' ? `https://shasta.tronscan.org/#/transaction/${txHash}` : `https://tronscan.org/#/transaction/${txHash}`;
     } else {
       return sendResponse(res, { success: false, message: 'Invalid type. Use AFRi_ERC20 or AFRi_TRC20.', data: null, status: 400 });
     }
-    sendResponse(res, { success: true, message: 'Mint successful', data: { txHash } });
+    sendResponse(res, { success: true, message: 'Mint successful', data: { txHash, explorerUrl } });
+  } catch (err) {
+    sendResponse(res, { success: false, message: err.message, data: null, status: 500 });
+  }
+});
+
+// Burn tokens (AFRi_ERC20 or AFRi_TRC20)
+router.post('/burn', async (req, res) => {
+  const { blockchain, privateKey, from, amount } = req.body || {};
+  if (!blockchain || !privateKey || !from || !amount) {
+    return sendResponse(res, { success: false, message: 'blockchain, privateKey, from, and amount are required.', data: null, status: 400 });
+  }
+  try {
+    const normalizedChain = String(blockchain).toUpperCase();
+    let txHash;
+    let explorerUrl;
+    if (normalizedChain === 'AFRI_ERC20') {
+      if (!from.startsWith('0x')) throw new Error('AFRi_ERC20 burn requires a 0x... address for from');
+      const tx = await africoinService.burn(privateKey, from, amount);
+      txHash = tx.hash;
+      explorerUrl = process.env.NODE_ENV === 'test' ? `https://sepolia.etherscan.io/tx/${txHash}` : `https://etherscan.io/tx/${txHash}`;
+    } else if (normalizedChain === 'AFRI_TRC20') {
+      if (!from.startsWith('T')) throw new Error('AFRi_TRC20 burn requires a T... address for from');
+      const cleanPk = privateKey.startsWith('0x') ? privateKey.slice(2) : privateKey; // Tron expects raw hex
+      const tx = await TronAfricoinService.burn(cleanPk, from, amount);
+      txHash = tx;
+      explorerUrl = process.env.NODE_ENV === 'test' ? `https://shasta.tronscan.org/#/transaction/${txHash}` : `https://tronscan.org/#/transaction/${txHash}`;
+    } else {
+      return sendResponse(res, { success: false, message: 'Invalid blockchain. Use AFRi_ERC20 or AFRi_TRC20.', data: null, status: 400 });
+    }
+    sendResponse(res, { success: true, message: 'Burn successful', data: { txHash, explorerUrl } });
   } catch (err) {
     sendResponse(res, { success: false, message: err.message, data: null, status: 500 });
   }
@@ -48,17 +81,20 @@ router.post('/add-admin', async (req, res) => {
   try {
     const normalizedChain = String(kind).toUpperCase();
     let txHash;
+    let explorerUrl;
     if (normalizedChain === 'AFRI_ERC20') {
       const tx = await africoinService.addAdmin(privateKey, admin);
       txHash = tx.hash;
+      explorerUrl = process.env.NODE_ENV === 'test' ? `https://sepolia.etherscan.io/tx/${txHash}` : `https://etherscan.io/tx/${txHash}`;
     } else if (normalizedChain === 'AFRI_TRC20') {
       const cleanPk = privateKey; // Tron expects raw hex
       const tx = await TronAfricoinService.addAdmin(cleanPk, admin);
       txHash = tx;
+      explorerUrl = process.env.NODE_ENV === 'test' ? `https://shasta.tronscan.org/#/transaction/${txHash}` : `https://tronscan.org/#/transaction/${txHash}`;
     } else {
       return sendResponse(res, { success: false, message: 'Invalid blockchain. Use AFRi_ERC20 or AFRi_TRC20.', data: null, status: 400 });
     }
-    sendResponse(res, { success: true, message: 'Admin added successfully', data: { txHash } });
+    sendResponse(res, { success: true, message: 'Admin added successfully', data: { txHash, explorerUrl } });
   } catch (err) {
     sendResponse(res, { success: false, message: err.message, data: null, status: 500 });
   }
@@ -69,7 +105,8 @@ router.post('/remove-admin', async (req, res) => {
   const { admin } = req.body;
   try {
     const tx = await africoinService.removeAdmin(admin);
-    sendResponse(res, { success: true, message: 'Admin removed successfully', data: { txHash: tx.hash } });
+    const explorerUrl = process.env.NODE_ENV === 'test' ? `https://sepolia.etherscan.io/tx/${tx.hash}` : `https://etherscan.io/tx/${tx.hash}`;
+    sendResponse(res, { success: true, message: 'Admin removed successfully', data: { txHash: tx.hash, explorerUrl } });
   } catch (err) {
     sendResponse(res, { success: false, message: err.message, data: null, status: 400 });
   }
@@ -188,22 +225,25 @@ router.post('/transfer', async (req, res) => {
   try {
     const normalizedChain = String(blockchain).toUpperCase();
     let txHash;
+    let explorerUrl;
 
     if (normalizedChain === 'AFRI_ERC20') {
       if (!to.startsWith('0x')) throw new Error('AFRi_ERC20 transfer requires a 0x... address');
       // Perform meta-transfer automatically using provided privateKey
       const tx = await africoinService.metaTransferAuto(privateKey, to, amount);
       txHash = tx.hash ?? tx?.transactionHash ?? tx;
+      explorerUrl = process.env.NODE_ENV === 'test' ? `https://sepolia.etherscan.io/tx/${txHash}` : `https://etherscan.io/tx/${txHash}`;
     } else if (normalizedChain === 'AFRI_TRC20') {
       if (!to.startsWith('T')) throw new Error('AFRi_TRC20 transfer requires a T... address');
       // Perform meta-transfer automatically (user signs, company pays gas)
       const tx = await TronAfricoinService.metaTransferAuto(privateKey, to, amount);
       txHash = tx;
+      explorerUrl = process.env.NODE_ENV === 'test' ? `https://shasta.tronscan.org/#/transaction/${txHash}` : `https://tronscan.org/#/transaction/${txHash}`;
     } else {
       return sendResponse(res, { success: false, message: 'Invalid blockchain. Use AFRi_ERC20 or AFRi_TRC20.', data: null, status: 400 });
     }
 
-    sendResponse(res, { success: true, message: 'Transfer Successful', data: { txHash } });
+    sendResponse(res, { success: true, message: 'Transfer Successful', data: { txHash, explorerUrl } });
   } catch (err) {
     sendResponse(res, { success: false, message: err.message, data: null, status: 500 });
   }
@@ -241,6 +281,56 @@ router.get('/wallet/token-balance', async (req, res) => {
       return sendResponse(res, { success: false, message: 'Invalid type. Use AFRi_ERC20 or AFRi_TRC20.', data: null, status: 400 });
     }
     sendResponse(res, { success: true, message: 'Token balance retrieved successfully', data: { balance } });
+  } catch (err) {
+    sendResponse(res, { success: false, message: err.message, data: null, status: 500 });
+  }
+});
+
+// Helper functions for prices (defined earlier in gas-fees)
+async function getEthPrice() {
+  try {
+    const resp = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd');
+    const data = await resp.json();
+    return data.ethereum.usd;
+  } catch (err) {
+    console.log('Failed to fetch ETH price, using fallback:', err.message);
+    return 4187; // Fallback price
+  }
+}
+
+async function getTrxPrice() {
+  try {
+    const resp = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=tron&vs_currencies=usd');
+    const data = await resp.json();
+    return data.tron.usd;
+  } catch (err) {
+    console.log('Failed to fetch TRX price, using fallback:', err.message);
+    return 0.336; // Fallback price
+  }
+}
+
+// Get gas fee estimate (AFRi_ERC20 or AFRi_TRC20)
+router.get('/gas-fee', async (req, res) => {
+  const { blockchain, type } = req.query || {};
+  if (!blockchain || !type) {
+    return sendResponse(res, { success: false, message: 'blockchain and type are required as query parameters.', data: null, status: 400 });
+  }
+  try {
+    const normalizedChain = String(blockchain).toUpperCase();
+    const normalizedType = String(type).toLowerCase();
+    let gasFee;
+    if (normalizedChain === 'AFRI_ERC20') {
+      const ethFee = parseFloat(await africoinService.getGasFee(normalizedType));
+      const ethPrice = await getEthPrice();
+      gasFee = ethFee * ethPrice;
+    } else if (normalizedChain === 'AFRI_TRC20') {
+      const trxFee = parseFloat(await TronAfricoinService.getGasFee(normalizedType));
+      const trxPrice = await getTrxPrice();
+      gasFee = trxFee * trxPrice;
+    } else {
+      return sendResponse(res, { success: false, message: 'Invalid blockchain. Use AFRi_ERC20 or AFRi_TRC20.', data: null, status: 400 });
+    }
+    sendResponse(res, { success: true, message: 'Gas fee retrieved successfully', data: { gasFee } });
   } catch (err) {
     sendResponse(res, { success: false, message: err.message, data: null, status: 500 });
   }
@@ -346,9 +436,22 @@ router.get('/gas-fees', async (req, res) => {
       return sendResponse(res, { success: false, message: 'Unsupported blockchain. Use AFRi_ERC20 or AFRi_TRC20', data: null, status: 400 });
     }
 
+    // Helper function to get current ETH price in USD
+    async function getEthPrice() {
+      try {
+        const resp = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd');
+        const data = await resp.json();
+        return data.ethereum.usd;
+      } catch (err) {
+        console.log('Failed to fetch ETH price, using fallback:', err.message);
+        return 4187; // Fallback price
+      }
+    }
+
     // ETH estimation using Etherscan gas oracle (if ETHERSCAN_API_KEY set), with fallback defaults
     async function getEthereumGasFees() {
       const gweiToEth = (g) => Number(g) * 1e-9;
+      let low, medium, high;
       try {
         const apiKey = process.env.ETHERSCAN_API_KEY || 'YourApiKeyToken';
         const url = `https://api.etherscan.io/api?module=gastracker&action=gasoracle&apikey=${apiKey}`;
@@ -357,30 +460,54 @@ router.get('/gas-fees', async (req, res) => {
         if (!data || data.status !== '1') throw new Error(data?.message || 'Etherscan error');
         const r = data.result;
         const baseFee = gweiToEth(parseFloat(r.suggestBaseFee));
-        const low = baseFee + gweiToEth(parseFloat(r.SafeGasPrice));
-        const medium = baseFee + gweiToEth(parseFloat(r.ProposeGasPrice));
-        const high = baseFee + gweiToEth(parseFloat(r.FastGasPrice));
-        return { blockchain: 'ETH', unit: 'ETH', fees: { low: { totalFee: low }, medium: { totalFee: medium }, high: { totalFee: high } } };
+        low = baseFee + gweiToEth(parseFloat(r.SafeGasPrice));
+        medium = baseFee + gweiToEth(parseFloat(r.ProposeGasPrice));
+        high = baseFee + gweiToEth(parseFloat(r.FastGasPrice));
       } catch (_) {
         // Fallback static values in ETH
         const baseFee = gweiToEth(30);
-        const low = baseFee + gweiToEth(35);
-        const medium = baseFee + gweiToEth(40);
-        const high = baseFee + gweiToEth(50);
-        return { blockchain: 'ETH', unit: 'ETH', fees: { low: { totalFee: low }, medium: { totalFee: medium }, high: { totalFee: high } } };
+        low = baseFee + gweiToEth(35);
+        medium = baseFee + gweiToEth(40);
+        high = baseFee + gweiToEth(50);
+      }
+
+      // Convert to AFRi_ERC20 (1 AFRi = 1 USD)
+      const ethPrice = await getEthPrice();
+      const lowAfri = low * ethPrice;
+      const mediumAfri = medium * ethPrice;
+      const highAfri = high * ethPrice;
+
+      return { blockchain: 'AFRi_ERC20', unit: 'AFRi_ERC20', fees: { low: { totalFee: lowAfri }, medium: { totalFee: mediumAfri }, high: { totalFee: highAfri } } };
+    }
+
+    // Helper function to get current TRX price in USD
+    async function getTrxPrice() {
+      try {
+        const resp = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=tron&vs_currencies=usd');
+        const data = await resp.json();
+        return data.tron.usd;
+      } catch (err) {
+        console.log('Failed to fetch TRX price, using fallback:', err.message);
+        return 0.336; // Fallback price
       }
     }
 
     // TRON estimation: static presets, matching your sample
     async function getTronGasFees() {
+      const trxPrice = await getTrxPrice();
+      const lowAfri = 0.3 * trxPrice;
+      const mediumAfri = 0.4 * trxPrice;
+      const highAfri = 0.4 * trxPrice;
+      const urgentAfri = 0.4 * trxPrice;
+
       return {
-        blockchain: 'TRX',
-        unit: 'TRX',
+        blockchain: 'AFRi_TRC20',
+        unit: 'AFRi_TRC20',
         fees: {
-          low: { totalFee: 0.3 },
-          medium: { totalFee: 0.4 },
-          high: { totalFee: 0.4 },
-          urgent: { totalFee: 0.4 }
+          low: { totalFee: lowAfri },
+          medium: { totalFee: mediumAfri },
+          high: { totalFee: highAfri },
+          urgent: { totalFee: urgentAfri }
         }
       };
     }
@@ -394,6 +521,371 @@ router.get('/gas-fees', async (req, res) => {
     }
 
     return sendResponse(res, { success: true, message: 'Gas fees fetched', data: result });
+  } catch (err) {
+    return sendResponse(res, { success: false, message: err.message, data: null, status: 500 });
+  }
+});
+
+// Transaction history: all transactions (native + token transfers) for a specific address
+// GET /api/africoin/transactions/:address?type=AFRi_ERC20|AFRi_TRC20&page=0&size=20&fromTime=ISO&toTime=ISO
+router.get('/transactions/:address', async (req, res) => {
+  try {
+    const address = req.params.address;
+    const type = String(req.query.type || '').toUpperCase();
+    const page = Number(req.query.page ?? 0) || 0;
+    const size = Math.min(Number(req.query.size ?? 20) || 20, 100);
+    const fromTime = req.query.fromTime ? Date.parse(req.query.fromTime) : undefined; // ms
+    const toTime = req.query.toTime ? Date.parse(req.query.toTime) : undefined; // ms
+
+    if (!address) {
+      return sendResponse(res, { success: false, message: 'address param is required', data: null, status: 400 });
+    }
+    if (type !== 'AFRI_ERC20' && type !== 'AFRI_TRC20') {
+      return sendResponse(res, { success: false, message: 'type query must be AFRi_ERC20 or AFRi_TRC20', data: null, status: 400 });
+    }
+
+    // Helpers
+    async function getEthTokenTransactions(addr, page, size, fromTime, toTime) {
+      // Token transfers (ERC20)
+      const { ethers } = require('ethers');
+      const config = require('../config/provider');
+      const contractAddress = process.env.CONTRACT_ADDRESS_ETH;
+      const apiKey = process.env.ETHERSCAN_API_KEY || 'YourApiKeyToken';
+      if (!contractAddress) throw new Error('CONTRACT_ADDRESS_ETH not set');
+
+      // Etherscan paginates by page+offset (max 100). We'll align to batches of 100 and slice within.
+      const etherscanPage = Math.floor((page * size) / 100) + 1;
+      const offset = 100; // batch size
+      const rpcUrl = (config && config.ethereum && config.ethereum.rpcUrl) || '';
+      const isSepolia = /sepolia/i.test(rpcUrl);
+      const baseUrl = isSepolia ? 'https://api-sepolia.etherscan.io/api' : 'https://api.etherscan.io/api';
+      const params = new URLSearchParams({
+        module: 'account',
+        action: 'tokentx',
+        contractaddress: contractAddress,
+        address: addr,
+        page: String(etherscanPage),
+        offset: String(offset),
+        sort: 'desc',
+        apikey: apiKey
+      });
+      const url = `${baseUrl}?${params.toString()}`;
+      const resp = await fetch(url);
+      const data = await resp.json();
+      if (!data || data.status !== '1') {
+        throw new Error(data?.message || 'Etherscan API error');
+      }
+      let txs = data.result || [];
+      // Time filter (client-side)
+      if (fromTime || toTime) {
+        txs = txs.filter(tx => {
+          const ts = Number(tx.timeStamp) * 1000; // seconds -> ms
+          if (fromTime && ts < fromTime) return false;
+          if (toTime && ts > toTime) return false;
+          return true;
+        });
+      }
+      // Map to common format
+      const explorerBaseUrl = isSepolia ? 'https://sepolia.etherscan.io/tx/' : 'https://etherscan.io/tx/';
+      const formatted = txs.map(tx => ({
+        hash: tx.hash,
+        from: tx.from,
+        to: tx.to,
+        value: ethers.formatUnits(tx.value || '0', 18),
+        timestamp: Number(tx.timeStamp) * 1000,
+        status: Number(tx.confirmations || 0) > 0 ? 'confirmed' : 'pending',
+        network: 'AFRi_ERC20',
+        tokenSymbol: 'AFRI',
+        blockNumber: Number(tx.blockNumber || 0),
+        gasUsed: tx.gas || undefined,
+        gasPrice: tx.gasPrice || undefined,
+        explorerUrl: `${explorerBaseUrl}${tx.hash}`
+      }));
+      // Slice for requested page subset inside the 100 batch
+      const start = (page * size) % 100;
+      const end = start + size;
+      const paginated = formatted.slice(start, end);
+      return { transactions: paginated, total: formatted.length };
+    }
+
+    async function getTronTokenTransactions(addr, page, size, fromTime, toTime) {
+      // Token transfers (TRC20)
+      const tronWeb = TronWalletService.tronWeb;
+      if (!tronWeb) throw new Error('TronWeb not initialized');
+      const hexAddress = tronWeb.address.toHex(addr);
+      const contractAddress = process.env.CONTRACT_ADDRESS_TRON;
+      // Choose Shasta for test, mainnet otherwise
+      const isTest = (process.env.NODE_ENV || '').toLowerCase() === 'test' || /shasta/i.test(process.env.TRON_TESTNET_RPC_URL || '');
+      const tronGridBaseUrl = isTest ? 'https://api.shasta.trongrid.io' : 'https://api.trongrid.io';
+      const apiKey = process.env.TRON_PRO_API_KEY; // optional
+
+      const url = new URL(`${tronGridBaseUrl}/v1/accounts/${hexAddress}/transactions/trc20`);
+      url.searchParams.set('limit', String(Math.min(size, 50))); // TronGrid max 50
+      url.searchParams.set('offset', String(page * size));
+      url.searchParams.set('only_confirmed', 'true');
+      url.searchParams.set('order_by', 'block_timestamp,desc');
+      if (contractAddress) url.searchParams.set('contract_address', contractAddress);
+
+      const headers = apiKey ? { 'TRON-PRO-API-KEY': apiKey } : {};
+      const resp = await fetch(url, { headers });
+      const json = await resp.json();
+      const txs = json?.data || [];
+
+      // Filter by our token contract if API param not supported
+      const filteredByContract = contractAddress
+        ? txs.filter(tx => (tx.token_info && tx.token_info.address ? tx.token_info.address.toLowerCase() === contractAddress.toLowerCase() : true))
+        : txs;
+
+      // Time filter
+      let timeFiltered = filteredByContract;
+      if (fromTime || toTime) {
+        timeFiltered = filteredByContract.filter(tx => {
+          const ts = Number(tx.block_timestamp); // already ms
+          if (fromTime && ts < fromTime) return false;
+          if (toTime && ts > toTime) return false;
+          return true;
+        });
+      }
+
+      const decimals = (tx) => Number(tx?.token_info?.decimals ?? 18);
+      const explorerBaseUrl = ((process.env.NODE_ENV || '').toLowerCase() === 'test') ? 'https://shasta.tronscan.org/#/transaction/' : 'https://tronscan.org/#/transaction/';
+      const formatted = timeFiltered.map(tx => ({
+        hash: tx.transaction_id,
+        from: tx.from || (tx.from_address || null),
+        to: tx.to || (tx.to_address || null),
+        value: (Number(tx.value || 0) / Math.pow(10, decimals(tx))).toString(),
+        timestamp: Number(tx.block_timestamp),
+        status: 'confirmed',
+        network: 'AFRi_TRC20',
+        tokenSymbol: (tx.token_info && tx.token_info.symbol) || 'AFRI',
+        blockNumber: tx.block || undefined,
+        explorerUrl: `${explorerBaseUrl}${tx.transaction_id}`
+      }));
+
+      // TronGrid already paginates, but after filtering the count may shrink; ensure slice
+      const start = 0;
+      const end = Math.min(size, formatted.length);
+      const paginated = formatted.slice(start, end);
+      return { transactions: paginated, total: formatted.length };
+    }
+
+    // Fetch all transactions (native + token) for Ethereum
+    async function getEthAllTransactions(addr, page, size, fromTime, toTime) {
+      const { ethers } = require('ethers');
+      const config = require('../config/provider');
+      const apiKey = process.env.ETHERSCAN_API_KEY || 'YourApiKeyToken';
+      const rpcUrl = (config && config.ethereum && config.ethereum.rpcUrl) || '';
+      const isSepolia = /sepolia/i.test(rpcUrl) || (process.env.NODE_ENV || '').toLowerCase() === 'test';
+      const baseApi = isSepolia ? 'https://api-sepolia.etherscan.io/api' : 'https://api.etherscan.io/api';
+      const explorerBaseUrl = isSepolia ? 'https://sepolia.etherscan.io/tx/' : 'https://etherscan.io/tx/';
+
+      // Use batches of 100 from Etherscan and slice for pagination
+      const etherscanPage = Math.floor((page * size) / 100) + 1;
+      const offset = 100;
+
+      const paramsNormal = new URLSearchParams({
+        module: 'account',
+        action: 'txlist',
+        address: addr,
+        startblock: '0',
+        endblock: '99999999',
+        page: String(etherscanPage),
+        offset: String(offset),
+        sort: 'desc',
+        apikey: apiKey
+      });
+
+      const paramsToken = new URLSearchParams({
+        module: 'account',
+        action: 'tokentx',
+        address: addr,
+        page: String(etherscanPage),
+        offset: String(offset),
+        sort: 'desc',
+        apikey: apiKey
+      });
+
+      const [normalResp, tokenResp] = await Promise.all([
+        fetch(`${baseApi}?${paramsNormal.toString()}`),
+        fetch(`${baseApi}?${paramsToken.toString()}`)
+      ]);
+      const [normalData, tokenData] = await Promise.all([normalResp.json(), tokenResp.json()]);
+
+      const normalizeEtherscan = (data) => {
+        if (!data) return [];
+        if (data.status === '1') return data.result || [];
+        const msg = String(data.message || '').toLowerCase();
+        if (msg.includes('no transactions') || msg.includes('no records found')) return [];
+        // treat rate limit errors or invalid key as hard errors
+        throw new Error(data.message || 'Etherscan API error');
+      };
+
+      const normal = normalizeEtherscan(normalData);
+      const token = normalizeEtherscan(tokenData);
+
+      // Map normal ETH transfers
+      const normalMapped = (normal || []).map(tx => ({
+        hash: tx.hash,
+        from: tx.from,
+        to: tx.to,
+        value: ethers.formatEther(tx.value || '0'),
+        timestamp: Number(tx.timeStamp) * 1000,
+        status: tx.isError === '0' ? 'confirmed' : 'failed',
+        network: 'ETH',
+        tokenSymbol: 'ETH',
+        blockNumber: Number(tx.blockNumber || 0),
+        gasUsed: tx.gasUsed || tx.gas,
+        gasPrice: tx.gasPrice,
+        type: 'native',
+        explorerUrl: `${explorerBaseUrl}${tx.hash}`
+      }));
+
+      // Map ERC20 transfers (all tokens)
+      const tokenMapped = (token || []).map(tx => {
+        const decimals = Number(tx.tokenDecimal || 18);
+        return {
+          hash: tx.hash,
+          from: tx.from,
+          to: tx.to,
+          value: ethers.formatUnits(tx.value || '0', decimals),
+          timestamp: Number(tx.timeStamp) * 1000,
+          status: Number(tx.confirmations || 0) > 0 ? 'confirmed' : 'pending',
+          network: 'ETH',
+          tokenSymbol: tx.tokenSymbol || 'ERC20',
+          blockNumber: Number(tx.blockNumber || 0),
+          gasUsed: tx.gas || undefined,
+          gasPrice: tx.gasPrice || undefined,
+          type: 'erc20',
+          explorerUrl: `${explorerBaseUrl}${tx.hash}`
+        };
+      });
+
+      // Merge, optional time filter, sort, and paginate
+      let combined = [...normalMapped, ...tokenMapped];
+      if (fromTime || toTime) {
+        combined = combined.filter(tx => {
+          const ts = Number(tx.timestamp);
+          if (fromTime && ts < fromTime) return false;
+          if (toTime && ts > toTime) return false;
+          return true;
+        });
+      }
+      combined.sort((a, b) => b.timestamp - a.timestamp);
+
+      const start = page * size;
+      const end = start + size;
+      return { transactions: combined.slice(start, end), total: combined.length };
+    }
+
+    // Fetch all transactions (native + TRC20) for Tron
+    async function getTronAllTransactions(addr, page, size, fromTime, toTime) {
+      const tronWeb = TronWalletService.tronWeb;
+      if (!tronWeb) throw new Error('TronWeb not initialized');
+      const hexAddress = tronWeb.address.toHex(addr);
+      const isTest = (process.env.NODE_ENV || '').toLowerCase() === 'test';
+      const tronGridBaseUrl = isTest ? 'https://api.shasta.trongrid.io' : 'https://api.trongrid.io';
+      const explorerBaseUrl = isTest ? 'https://shasta.tronscan.org/#/transaction/' : 'https://tronscan.org/#/transaction/';
+      const apiKey = process.env.TRON_PRO_API_KEY;
+
+      const limit = Math.min(size, 50);
+      const offset = page * size;
+
+      const headers = apiKey ? { 'TRON-PRO-API-KEY': apiKey } : {};
+
+      const nativeUrl = new URL(`${tronGridBaseUrl}/v1/accounts/${hexAddress}/transactions`);
+      nativeUrl.searchParams.set('limit', String(limit));
+      nativeUrl.searchParams.set('offset', String(offset));
+      nativeUrl.searchParams.set('only_confirmed', 'true');
+      nativeUrl.searchParams.set('order_by', 'block_timestamp,desc');
+
+      const trc20Url = new URL(`${tronGridBaseUrl}/v1/accounts/${hexAddress}/transactions/trc20`);
+      trc20Url.searchParams.set('limit', String(limit));
+      trc20Url.searchParams.set('offset', String(offset));
+      trc20Url.searchParams.set('only_confirmed', 'true');
+      trc20Url.searchParams.set('order_by', 'block_timestamp,desc');
+
+      const [nativeResp, trc20Resp] = await Promise.all([
+        fetch(nativeUrl, { headers }),
+        fetch(trc20Url, { headers })
+      ]);
+      const [nativeJson, trc20Json] = await Promise.all([nativeResp.json(), trc20Resp.json()]);
+      const nativeTxs = nativeJson?.data || [];
+      const trc20Txs = trc20Json?.data || [];
+
+      const nativeMapped = nativeTxs.map(tx => {
+        try {
+          const contract = tx.raw_data?.contract?.[0];
+          const val = contract?.parameter?.value || {};
+          const fromHex = val.owner_address;
+          const toHex = val.to_address || null;
+          return {
+            hash: tx.txID,
+            from: fromHex ? tronWeb.address.fromHex(fromHex) : null,
+            to: toHex ? tronWeb.address.fromHex(toHex) : null,
+            value: (Number(val.amount || 0) / 1e6).toString(), // SUN -> TRX
+            timestamp: Number(tx.block_timestamp),
+            status: (tx.ret?.[0]?.contractRet || '') === 'SUCCESS' ? 'confirmed' : 'failed',
+            network: 'TRX',
+            tokenSymbol: 'TRX',
+            blockNumber: tx.blockNumber,
+            type: 'native',
+            explorerUrl: `${explorerBaseUrl}${tx.txID}`
+          };
+        } catch (e) {
+          return null;
+        }
+      }).filter(Boolean);
+
+      const trc20Mapped = trc20Txs.map(tx => {
+        const dec = Number(tx?.token_info?.decimals ?? 18);
+        return {
+          hash: tx.transaction_id,
+          from: tx.from || tx.from_address || null,
+          to: tx.to || tx.to_address || null,
+          value: (Number(tx.value || 0) / Math.pow(10, dec)).toString(),
+          timestamp: Number(tx.block_timestamp),
+          status: 'confirmed',
+          network: 'TRX',
+          tokenSymbol: tx?.token_info?.symbol || 'TRC20',
+          blockNumber: tx.block || undefined,
+          type: 'trc20',
+          explorerUrl: `${explorerBaseUrl}${tx.transaction_id}`
+        };
+      });
+
+      let combined = [...nativeMapped, ...trc20Mapped];
+      if (fromTime || toTime) {
+        combined = combined.filter(tx => {
+          const ts = Number(tx.timestamp);
+          if (fromTime && ts < fromTime) return false;
+          if (toTime && ts > toTime) return false;
+          return true;
+        });
+      }
+      combined.sort((a, b) => b.timestamp - a.timestamp);
+
+      const start = page * size;
+      const end = start + size;
+      return { transactions: combined.slice(start, end), total: combined.length };
+    }
+
+    let result;
+    if (type === 'AFRI_ERC20') {
+      result = await getEthAllTransactions(address, page, size, fromTime, toTime);
+    } else {
+      result = await getTronAllTransactions(address, page, size, fromTime, toTime);
+    }
+
+    return sendResponse(res, {
+      success: true,
+      message: 'Transaction history retrieved successfully',
+      data: {
+        address,
+        type,
+        transactions: result.transactions,
+        pagination: { page, size, total: result.total }
+      }
+    });
   } catch (err) {
     return sendResponse(res, { success: false, message: err.message, data: null, status: 500 });
   }
