@@ -49,9 +49,10 @@ function getNextLocalEthNonce(address) {
 }
 
 async function mint(privateKey, to, amount) {
+  const amountWei = ethers.parseUnits(amount.toString(), 18);
   const wallet = new ethers.Wallet(privateKey, provider);
   const africoinWithSigner = new ethers.Contract(contractAddress, AFRICOIN_ABI, wallet);
-  return africoinWithSigner.mint(to, amount);
+  return africoinWithSigner.mint(to, amountWei);
 }
 
 async function addAdmin(privateKey, admin) {
@@ -80,11 +81,13 @@ async function getUserNonce(userAddress) {
 }
 
 async function getBalance(address) {
-  return africoin.balanceOf(address);
+  const balance = await africoin.balanceOf(address);
+  return ethers.formatUnits(balance, 18);
 }
 
 // Legacy direct transfer kept for compatibility (non-meta)
 async function transfer(privateKey, to, amount) {
+  const amountWei = ethers.parseUnits(amount.toString(), 18);
   const { ethers } = require('ethers');
   const config = require('../config/provider');
   const provider = config.ethereum.provider;
@@ -92,7 +95,7 @@ async function transfer(privateKey, to, amount) {
   const africoin = new ethers.Contract(contractAddress, AFRICOIN_ABI, provider);
   const wallet = new ethers.Wallet(privateKey, provider);
   const africoinWithSigner = africoin.connect(wallet);
-  return africoinWithSigner.transfer(to, amount);
+  return africoinWithSigner.transfer(to, amountWei);
 }
 
 // New meta-transfer using relayer (company) key
@@ -100,7 +103,8 @@ async function metaTransfer({ from, to, amount, nonce, deadline, gasCostUSD, sig
   if (!from || !to || !amount || nonce === undefined || !deadline || !gasCostUSD || !signature) {
     throw new Error('Missing required meta-transfer fields');
   }
-  return africoin.metaTransfer(from, to, amount, nonce, deadline, gasCostUSD, signature);
+  const amountWei = ethers.parseUnits(amount.toString(), 18);
+  return africoin.metaTransfer(from, to, amountWei, nonce, deadline, gasCostUSD, signature);
 }
 
 // Under-the-hood meta transfer using user's private key input and internal gas/nonce/signing
@@ -108,6 +112,7 @@ async function metaTransfer({ from, to, amount, nonce, deadline, gasCostUSD, sig
 async function metaTransferAuto(privateKey, to, amount, bufferBps = 1000) { // 1000 = +10%
   if (!privateKey || !to || !amount) throw new Error('privateKey, to, and amount are required');
 
+  const amountWei = ethers.parseUnits(amount.toString(), 18);
   const userWallet = new ethers.Wallet(privateKey, provider);
   const from = await userWallet.getAddress();
 
@@ -167,7 +172,7 @@ async function metaTransferAuto(privateKey, to, amount, bufferBps = 1000) { // 1
   let value = {
     from,
     to,
-    amount: BigInt(amount),
+    amount: amountWei,
     nonce: currentNonce,
     deadline: BigInt(deadline),
     gasCostUSD
@@ -179,7 +184,7 @@ async function metaTransferAuto(privateKey, to, amount, bufferBps = 1000) { // 1
   const maxRetries = 5; // Prevent infinite loop
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
-      await africoin.estimateGas.metaTransfer(from, to, amount, currentNonce, deadline, gasCostUSD, signature);
+      await africoin.estimateGas.metaTransfer(from, to, amountWei, currentNonce, deadline, gasCostUSD, signature);
       break; // Success, proceed
     } catch (err) {
       if (err.reason && err.reason.includes("nonce already used")) {
@@ -200,7 +205,7 @@ async function metaTransferAuto(privateKey, to, amount, bufferBps = 1000) { // 1
   let finalSignature = signature;
   let finalGasCostUSD = gasCostUSD;
   try {
-    const estGas = await africoin.estimateGas.metaTransfer(from, to, amount, currentNonce, deadline, finalGasCostUSD, finalSignature);
+    const estGas = await africoin.estimateGas.metaTransfer(from, to, amountWei, currentNonce, deadline, finalGasCostUSD, finalSignature);
     const ethCostWei2 = estGas * maxFeePerGas;
     let gasCostUSD2 = Number(ethCostWei2) / 1e18 * ethUsd * (1 + bufferBps / 10000);
     const gasCostUSDAdj = ethers.parseUnits(gasCostUSD2.toFixed(6), 18);
@@ -218,7 +223,7 @@ async function metaTransferAuto(privateKey, to, amount, bufferBps = 1000) { // 1
   let retryCount = 0;
   do {
     try {
-      tx = await africoin.metaTransfer(from, to, amount, currentNonce, deadline, finalGasCostUSD, finalSignature);
+      tx = await africoin.metaTransfer(from, to, amountWei, currentNonce, deadline, finalGasCostUSD, finalSignature);
       break;
     } catch (err) {
       if (err.reason && err.reason.includes("nonce already used") && retryCount < maxRetries) {

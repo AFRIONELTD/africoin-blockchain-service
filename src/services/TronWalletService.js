@@ -93,7 +93,7 @@ class TronWalletService extends IWalletService {
       const contract = await this.tronWeb.contract(tokenAbi, tokenContractAddress);
       // Pass the address as the 'from' context to avoid owner_address error
       const balance = await contract.balanceOf(address).call({ from: address });
-      return balance.toString();
+      return ethers.formatUnits(BigInt(balance.toString()), 18);
     } catch (error) {
       logger.error('Error getting TRC20 token balance:', error);
       throw new Error(`Failed to get TRC20 token balance: ${error.message}`);

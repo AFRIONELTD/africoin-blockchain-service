@@ -66,7 +66,7 @@ class EthereumWalletService extends IWalletService {
       }
       const contract = new ethers.Contract(tokenContractAddress, tokenAbi, provider);
       const balance = await contract.balanceOf(address);
-      return balance.toString();
+      return ethers.formatUnits(balance, 18);
     } catch (error) {
       logger.error('Error getting ERC20 token balance:', error);
       throw new Error(`Failed to get ERC20 token balance: ${error.message}`);

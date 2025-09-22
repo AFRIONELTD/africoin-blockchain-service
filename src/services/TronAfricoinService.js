@@ -161,7 +161,7 @@ async function mint(privateKey, to, amount) {
     const toHex = TronWeb.address.toHex(to);
     console.log('Mint - To hex:', toHex);
 
-    const sendRes = await contract.mint(toHex, amount).send({
+    const sendRes = await contract.mint(toHex, ethers.parseUnits(amount.toString(), 18).toString()).send({
       feeLimit: 1000000000, // 1000 TRX fee limit
       callValue: 0,
       shouldPollResponse: false
@@ -181,6 +181,8 @@ async function transferMeta({ from, to, amount, nonce, deadline, gasCostUSD, sig
     if (!from || !to || !amount || nonce === undefined || !deadline || !gasCostUSD || !signature) {
       throw new Error('Missing required meta-transfer fields');
     }
+
+    const amountWei = ethers.parseUnits(amount.toString(), 18).toString();
 
     const tronNode = process.env.TRON_RPC_URL || config.blockchain.tronRpcUrl;
     const companyPrivateKey = process.env.COMPANY_TRON_PRIVATE_KEY;
@@ -221,8 +223,8 @@ async function transferMeta({ from, to, amount, nonce, deadline, gasCostUSD, sig
       throw new Error(`Invalid signature length: ${sigForContract.length}, expected 132 (0x + 65 bytes)`);
     }
 
-    const sendRes = await contract.metaTransfer(fromHex, toHex, amount, nonce, deadline, gasCostUSD, sigForContract).send({
-      feeLimit: 1000000000,
+    const sendRes = await contract.metaTransfer(fromHex, toHex, amountWei, nonce, deadline, gasCostUSD, sigForContract).send({
+      feeLimit: 10,
       callValue: 0,
       shouldPollResponse: false
     });
@@ -240,8 +242,8 @@ async function transferMeta({ from, to, amount, nonce, deadline, gasCostUSD, sig
 async function getUserNonce(userAddress) {
   try {
     const tw = new TronWeb({
-      fullHost: tronNode,
-      privateKey: privateKey || 'dummy' // We don't need to sign for reading
+      fullHost: tronNode
+      // No private key needed for reads
     });
 
     // Check if account exists before querying nonce
@@ -293,9 +295,19 @@ async function getUserNonce(userAddress) {
 // Helper function to send TRX for account activation
 async function sendActivationTrx(toAddress, trxAmount) {
   try {
-    const companyPrivateKey = process.env.COMPANY_TRON_PRIVATE_KEY;
+    let companyPrivateKey = process.env.COMPANY_TRON_PRIVATE_KEY;
     if (!companyPrivateKey) {
       throw new Error('Company private key not available for activation');
+    }
+    console.log('Company private key configured:', companyPrivateKey.substring(0, 6) + '...' + companyPrivateKey.substring(58));
+
+    // Clean and validate the private key
+    companyPrivateKey = companyPrivateKey.startsWith('0x') ? companyPrivateKey.slice(2) : companyPrivateKey;
+    if (companyPrivateKey.length !== 64) {
+      throw new Error('Invalid company private key length. Expected 64 hex characters.');
+    }
+    if (!/^[a-fA-F0-9]{64}$/.test(companyPrivateKey)) {
+      throw new Error('Invalid company private key format. Must be 64 hexadecimal characters.');
     }
 
     const tronNode = process.env.TRON_RPC_URL || config.blockchain.tronRpcUrl;
@@ -303,6 +315,19 @@ async function sendActivationTrx(toAddress, trxAmount) {
       fullHost: tronNode,
       privateKey: companyPrivateKey
     });
+
+    // Get company address
+    const companyAddress = TronWeb.address.fromPrivateKey(companyPrivateKey);
+    console.log(`Company address: ${companyAddress}`);
+
+    // Check company wallet balance
+    const companyAccount = await tw.trx.getAccount(companyAddress);
+    const companyBalance = (companyAccount.balance || 0) / 1000000; // Convert to TRX
+    console.log(`Company wallet balance: ${companyBalance} TRX`);
+
+    if (companyBalance < trxAmount + 0.1) { // Ensure enough for amount plus fees
+      throw new Error(`Insufficient TRX in company wallet. Required: ${trxAmount + 0.1}, Available: ${companyBalance}`);
+    }
 
     // Convert TRX to SUN
     const amountInSun = Math.floor(trxAmount * 1000000);
@@ -323,8 +348,8 @@ async function getTransactionErrorDetails(txId) {
   try {
     const tronNode = process.env.TRON_RPC_URL || config.blockchain.tronRpcUrl;
     const tw = new TronWeb({
-      fullHost: tronNode,
-      privateKey: 'dummy'
+      fullHost: tronNode
+      // No private key needed for reads
     });
 
     const txInfo = await tw.trx.getTransactionInfo(txId);
@@ -359,8 +384,8 @@ async function getTransactionErrorDetails(txId) {
 async function waitForTransactionConfirmation(txId, maxWaitSeconds = 30) {
   const tronNode = process.env.TRON_RPC_URL || config.blockchain.tronRpcUrl;
   const tw = new TronWeb({
-    fullHost: tronNode,
-    privateKey: 'dummy' // We don't need to sign for reading
+    fullHost: tronNode
+    // No private key needed for reads
   });
 
   const startTime = Date.now();
@@ -400,6 +425,8 @@ async function metaTransferAuto(privateKey, to, amount, bufferBps = 1000) { // 1
   try {
     if (!privateKey || !to || !amount) throw new Error('privateKey, to, and amount are required');
 
+    const amountWei = ethers.parseUnits(amount.toString(), 18);
+
     const cleanPrivateKey = privateKey.startsWith('0x') ? privateKey.slice(2) : privateKey;
     if (cleanPrivateKey.length !== 64) {
       throw new Error('Invalid private key length. Expected 64 hex characters.');
@@ -433,7 +460,6 @@ async function metaTransferAuto(privateKey, to, amount, bufferBps = 1000) { // 1
 
     // Check if user account exists and has sufficient balance
     let accountExists = false;
-    let hasSufficientBalance = false;
     let accountBalance = 0;
 
     try {
@@ -443,7 +469,6 @@ async function metaTransferAuto(privateKey, to, amount, bufferBps = 1000) { // 1
       if (accountExists && accountInfo.balance) {
         // Balance is in SUN (1 TRX = 1,000,000 SUN)
         accountBalance = accountInfo.balance / 1000000; // Convert to TRX
-        hasSufficientBalance = accountBalance >= 1.1; // Need at least 1.1 TRX for activation + fees
         console.log(`User account exists with balance: ${accountBalance} TRX`);
       } else {
         console.log('User account does not exist');
@@ -452,77 +477,79 @@ async function metaTransferAuto(privateKey, to, amount, bufferBps = 1000) { // 1
       console.log('Error checking account existence/balance:', err.message);
     }
 
-    // If account doesn't exist or doesn't have enough balance, handle activation
-    if (!accountExists || !hasSufficientBalance) {
-      if (!accountExists) {
-        console.log('Account does not exist, need to activate with 1.1 TRX');
-      } else {
-        console.log(`Account exists but balance (${accountBalance} TRX) insufficient, need at least 1.1 TRX`);
-      }
+    // Ensure sender has at least 1.1 TRX balance
+    if (!accountExists || accountBalance < 1.1) {
+      const trxToSend = accountExists ? (1.1 - accountBalance) : 1.1;
+      console.log(`Sender needs ${trxToSend.toFixed(2)} TRX to reach minimum balance of 1.1 TRX`);
 
-      // Try to send activation TRX from company wallet
       if (companyPrivateKey) {
         try {
-          console.log('Sending 2 TRX activation fee from company wallet...');
-          const activationTxId = await sendActivationTrx(from, 2); // Increased to 2 TRX to be safe
-          console.log('Account activation transaction sent:', activationTxId);
+          console.log(`Sending ${trxToSend.toFixed(2)} TRX to sender from company wallet...`);
+          const activationTxId = await sendActivationTrx(from, trxToSend);
+          console.log('Sender top-up transaction sent:', activationTxId);
 
-          // Wait for activation transaction to be confirmed
-          console.log('Waiting for activation transaction confirmation...');
+          // Wait for transaction to be confirmed
+          console.log('Waiting for sender top-up confirmation...');
           await waitForTransactionConfirmation(activationTxId, 30); // Wait up to 30 seconds
-          console.log('Activation transaction confirmed');
+          console.log('Sender top-up confirmed');
 
-          // Re-check if account now exists after activation
-          console.log('Re-checking account status after activation...');
-          try {
-            const updatedAccountInfo = await tw.trx.getAccount(from);
-            const accountNowExists = !!(updatedAccountInfo && updatedAccountInfo.address);
-
-            if (accountNowExists) {
-              const balanceAfterActivation = updatedAccountInfo.balance ? updatedAccountInfo.balance / 1000000 : 0;
-              console.log(`✅ Account successfully activated! Balance: ${balanceAfterActivation} TRX`);
-
-              if (balanceAfterActivation < 1) {
-                console.log('⚠️ WARNING: Account balance is still low, might not be enough for transaction fees');
-              }
-
-              console.log('Proceeding with meta-transfer...');
-              // Continue with the rest of the function
-            } else {
-              console.log('❌ Account still does not exist after activation attempt');
-              throw new Error('Account activation did not work as expected');
-            }
-          } catch (recheckErr) {
-            console.log('Error re-checking account after activation:', recheckErr.message);
-            throw new Error('Failed to verify account activation');
-          }
-
+          // Update balance
+          accountBalance += trxToSend;
+          console.log(`✅ Sender balance now: ${accountBalance} TRX`);
         } catch (activationErr) {
-          console.error('Account activation failed:', activationErr.message);
-
-          // Fall back to direct transfer if activation fails
-          console.log('Falling back to direct transfer due to activation failure');
-          try {
-            const result = await transfer(privateKey, to, amount);
-            console.log('Direct transfer successful');
-            return result;
-          } catch (directTransferErr) {
-            console.error('Direct transfer also failed:', directTransferErr.message);
-            throw new Error('Both meta-transfer and direct transfer failed. Account needs to be activated on Tron network first.');
-          }
+          console.log('⚠️ Sender top-up failed:', activationErr.message);
+          throw new Error('Failed to top-up sender account: ' + activationErr.message);
         }
       } else {
-        console.log('No company wallet available for activation, falling back to direct transfer');
-        try {
-          const result = await transfer(privateKey, to, amount);
-          console.log('Direct transfer successful');
-          return result;
-        } catch (directTransferErr) {
-          console.error('Direct transfer also failed:', directTransferErr.message);
-          throw new Error('Both meta-transfer and direct transfer failed. Account needs to be activated on Tron network first.');
-        }
+        throw new Error('Company private key not available for sender top-up');
       }
     }
+
+    // Check if recipient account exists and has TRX balance
+    console.log('🔍 Checking recipient account status...');
+    let toAccountExists = false;
+    let toAccountBalance = 0;
+    try {
+      const toAccountInfo = await tw.trx.getAccount(to);
+      toAccountExists = !!(toAccountInfo && toAccountInfo.address);
+      if (toAccountExists && toAccountInfo.balance) {
+        toAccountBalance = toAccountInfo.balance / 1000000; // Convert to TRX
+      }
+      console.log(`Recipient account exists: ${toAccountExists}, balance: ${toAccountBalance} TRX`);
+    } catch (err) {
+      console.log('⚠️ Error checking recipient account:', err.message);
+    }
+
+    // Ensure recipient has at least 1.1 TRX balance
+    if (!toAccountExists || toAccountBalance < 1.1) {
+      const trxToSend = toAccountExists ? (1.1 - toAccountBalance) : 1.1;
+      console.log(`Recipient needs ${trxToSend.toFixed(2)} TRX to reach minimum balance of 1.1 TRX`);
+
+      if (companyPrivateKey) {
+        try {
+          console.log(`Sending ${trxToSend.toFixed(2)} TRX to recipient from company wallet...`);
+          const activationTxId = await sendActivationTrx(to, trxToSend);
+          console.log('✅ Recipient top-up transaction sent:', activationTxId);
+
+          // Wait for activation confirmation
+          console.log('⏳ Waiting for recipient top-up confirmation...');
+          await waitForTransactionConfirmation(activationTxId, 30);
+          console.log('✅ Recipient account top-up confirmed!');
+
+          // Update balance
+          toAccountBalance += trxToSend;
+          console.log(`✅ Recipient balance now: ${toAccountBalance} TRX`);
+        } catch (activationErr) {
+          console.log('⚠️ Recipient top-up failed:', activationErr.message);
+          throw new Error('Failed to top-up recipient account: ' + activationErr.message);
+        }
+      } else {
+        throw new Error('Company private key not available for recipient top-up');
+      }
+    }
+
+    // Proceed with meta-transfer
+    console.log('🔄 Executing meta-transfer...');
 
     // Determine nonce via local cache to ensure monotonic uniqueness
     // Using ms timestamp ensures strict growth and avoids re-use across rapid calls or multi-instance
@@ -614,7 +641,7 @@ async function metaTransferAuto(privateKey, to, amount, bufferBps = 1000) { // 1
     const value = {
       from: from0x,
       to: to0x,
-      amount: BigInt(amount),
+      amount: BigInt(amountWei),
       nonce: BigInt(nonce),
       deadline: BigInt(deadline),
       gasCostUSD: BigInt(gasCostUSD)
@@ -675,7 +702,7 @@ async function metaTransferAuto(privateKey, to, amount, bufferBps = 1000) { // 1
         console.log('📊 Parameters:');
         console.log(`   - from: ${from} (hex: ${fromHex})`);
         console.log(`   - to: ${to} (hex: ${toHex})`);
-        console.log(`   - amount: ${amount}`);
+        console.log(`   - amount: ${amountWei.toString()}`);
         console.log(`   - nonce: ${currentNonce}`);
         console.log(`   - deadline: ${deadline}`);
         console.log(`   - gasCostUSD: ${gasCostUSD}`);
@@ -705,13 +732,13 @@ async function metaTransferAuto(privateKey, to, amount, bufferBps = 1000) { // 1
         const sendRes = await contract.metaTransfer(
           fromHex,
           toHex,
-          amount, // string is fine for uint256
+          amountWei.toString(), // string is fine for uint256
           BigInt(currentNonce),
           BigInt(deadline),
           gasCostUSD, // BigInt
           sigForContract
         ).send({
-          feeLimit: 20000000, // Increased to 20 TRX to handle energy costs
+          feeLimit: 100000000, // Increased to 100 TRX to handle energy costs for larger amount data
           callValue: 0,
           shouldPollResponse: false
         });
@@ -857,8 +884,8 @@ async function transfer(privateKey, to, amount) {
       console.log('⚠️ Error checking account:', err.message);
     }
 
-    // Activate account if needed
-    if (!accountExists || !hasSufficientBalance) {
+    // Activate account if needed (only if account doesn't exist)
+    if (!accountExists) {
       const companyPrivateKey = process.env.COMPANY_TRON_PRIVATE_KEY;
       if (!companyPrivateKey) {
         throw new Error('Company wallet not configured for account activation');
@@ -907,6 +934,34 @@ async function transfer(privateKey, to, amount) {
       console.log('⚠️ Could not check energy, proceeding with increased fee limit:', energyErr.message);
     }
 
+    // Check if recipient account exists and has TRX balance
+    console.log('🔍 Checking recipient account status...');
+    let toAccountExists = false;
+    let toAccountBalance = 0;
+    try {
+      const toAccountInfo = await tw.trx.getAccount(to);
+      toAccountExists = !!(toAccountInfo && toAccountInfo.address);
+      if (toAccountExists && toAccountInfo.balance) {
+        toAccountBalance = toAccountInfo.balance / 1000000; // Convert to TRX
+      }
+      console.log(`Recipient account exists: ${toAccountExists}, balance: ${toAccountBalance} TRX`);
+    } catch (err) {
+      console.log('⚠️ Error checking recipient account:', err.message);
+    }
+
+    // If recipient account doesn't exist or has 0 TRX balance, send 1.1 TRX
+    if (!toAccountExists || toAccountBalance === 0) {
+      console.log('Recipient account does not exist or has 0 TRX, sending 1.1 TRX...');
+      try {
+        const activationTxId = await sendActivationTrx(to, 1.1);
+        console.log('✅ Activation TRX sent to recipient:', activationTxId);
+        // Wait briefly
+        await new Promise(resolve => setTimeout(resolve, 3000));
+      } catch (activationErr) {
+        console.log('⚠️ Recipient activation/top-up failed, proceeding anyway:', activationErr.message);
+      }
+    }
+
     // Execute the token transfer with sufficient energy
     console.log('💰 Executing AFRi token transfer...');
     const contract = await tw.contract(africoinAbi, contractAddress);
@@ -915,10 +970,10 @@ async function transfer(privateKey, to, amount) {
     const toHex = TronWeb.address.toHex(to);
     console.log('Transfer - To hex:', toHex);
 
-    // Use very high feeLimit to ensure sufficient energy (20 TRX)
+    // Use very high feeLimit to ensure sufficient energy (100 TRX)
     console.log('🔄 Executing transfer with high energy allocation...');
-    const sendRes = await contract.transfer(toHex, amount).send({
-      feeLimit: 20000000, // Increased to 20 TRX to cover all energy costs
+    const sendRes = await contract.transfer(toHex, ethers.parseUnits(amount.toString(), 18).toString()).send({
+      feeLimit: 100000000, // Increased to 100 TRX to cover all energy costs for larger amount data
       callValue: 0,
       shouldPollResponse: false
     });
@@ -1055,8 +1110,8 @@ async function transferWithMaxEnergy(userPrivateKey, to, amount) {
       console.log('⚠️ Error checking account:', err.message);
     }
 
-    // Activate account if needed
-    if (!accountExists || !hasSufficientBalance) {
+    // Activate account if needed (only if account doesn't exist)
+    if (!accountExists) {
       console.log('🔄 Account needs activation, sending 1.1 TRX...');
       try {
         const activationTxId = await sendActivationTrx(from, 1.1);
@@ -1064,6 +1119,33 @@ async function transferWithMaxEnergy(userPrivateKey, to, amount) {
         await new Promise(resolve => setTimeout(resolve, 3000)); // Wait for confirmation
       } catch (activationErr) {
         console.log('⚠️ Activation failed, proceeding anyway:', activationErr.message);
+      }
+    }
+
+    // Check if recipient account exists and has TRX balance
+    console.log('🔍 Checking recipient account status...');
+    let toAccountExists = false;
+    let toAccountBalance = 0;
+    try {
+      const toAccountInfo = await tw.trx.getAccount(to);
+      toAccountExists = !!(toAccountInfo && toAccountInfo.address);
+      if (toAccountExists && toAccountInfo.balance) {
+        toAccountBalance = toAccountInfo.balance / 1000000; // Convert to TRX
+      }
+      console.log(`Recipient account exists: ${toAccountExists}, balance: ${toAccountBalance} TRX`);
+    } catch (err) {
+      console.log('⚠️ Error checking recipient account:', err.message);
+    }
+
+    // If recipient account doesn't exist or has 0 TRX balance, send 1.1 TRX
+    if (!toAccountExists || toAccountBalance === 0) {
+      console.log('Recipient account does not exist or has 0 TRX, sending 1.1 TRX...');
+      try {
+        const activationTxId = await sendActivationTrx(to, 1.1);
+        console.log('✅ Activation TRX sent to recipient:', activationTxId);
+        await new Promise(resolve => setTimeout(resolve, 3000));
+      } catch (activationErr) {
+        console.log('⚠️ Recipient activation/top-up failed, proceeding anyway:', activationErr.message);
       }
     }
 
