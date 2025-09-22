@@ -9,6 +9,7 @@ All routes require a valid JWT Bearer token in the `Authorization` header.
 Authorization: Bearer <your-jwt-token>
 ```
 
+
 Generate a token using:
 ```sh
 node africoin-smart-contract/africoin-service/scripts/generateToken.js
@@ -375,7 +376,7 @@ Get estimated gas fee for a specific operation.
 {
   "success": true,
   "message": "Gas fee retrieved successfully",
-  "data": { "gasFee": "<estimated fee>" }
+  "data": { "gasFee": "<estimated fee in AFRi tokens>" }
 }
 ```
 
@@ -396,12 +397,12 @@ Get current gas fee estimates for the specified blockchain.
   "success": true,
   "message": "Gas fees fetched",
   "data": {
-    "blockchain": "ETH",
-    "unit": "ETH",
+    "blockchain": "AFRi_ERC20",
+    "unit": "AFRi_ERC20",
     "fees": {
-      "low": { "totalFee": 0.0001 },
-      "medium": { "totalFee": 0.0002 },
-      "high": { "totalFee": 0.0003 }
+      "low": { "totalFee": 0.4187 },
+      "medium": { "totalFee": 0.8374 },
+      "high": { "totalFee": 1.2561 }
     }
   }
 }
@@ -413,13 +414,13 @@ Get current gas fee estimates for the specified blockchain.
   "success": true,
   "message": "Gas fees fetched",
   "data": {
-    "blockchain": "TRX",
-    "unit": "TRX",
+    "blockchain": "AFRi_TRC20",
+    "unit": "AFRi_TRC20",
     "fees": {
-      "low": { "totalFee": 0.3 },
-      "medium": { "totalFee": 0.4 },
-      "high": { "totalFee": 0.4 },
-      "urgent": { "totalFee": 0.4 }
+      "low": { "totalFee": 0.1008 },
+      "medium": { "totalFee": 0.1344 },
+      "high": { "totalFee": 0.1344 },
+      "urgent": { "totalFee": 0.1344 }
     }
   }
 }

@@ -96,17 +96,22 @@ async function getBalance(address) {
 async function getGasFee(type) {
   const feeData = await provider.getFeeData();
   let gasPrice;
-  if (type === 'low') {
-    gasPrice = feeData.gasPrice || feeData.maxFeePerGas;
-  } else if (type === 'medium') {
-    gasPrice = (feeData.maxFeePerGas || feeData.gasPrice) * 2n / 3n + (feeData.maxPriorityFeePerGas || 0n);
-  } else if (type === 'high') {
-    gasPrice = (feeData.maxFeePerGas || feeData.gasPrice) + (feeData.maxPriorityFeePerGas || 0n);
+  // Assume medium priority for estimation
+  gasPrice = (feeData.maxFeePerGas || feeData.gasPrice) * 2n / 3n + (feeData.maxPriorityFeePerGas || 0n);
+
+  // Gas limits for operations
+  let gasLimit;
+  if (type === 'transfer') {
+    gasLimit = 65000n;
+  } else if (type === 'mint' || type === 'burn') {
+    gasLimit = 100000n;
   } else {
-    throw new Error('Invalid type. Use low, medium, or high.');
+    gasLimit = 21000n; // default
   }
-  // Return in gwei
-  return ethers.formatUnits(gasPrice, 'gwei');
+
+  const totalFeeWei = gasPrice * gasLimit;
+  // Return total fee in ETH
+  return ethers.formatEther(totalFeeWei);
 }
 
 // Legacy direct transfer kept for compatibility (non-meta)

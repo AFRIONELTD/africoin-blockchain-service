@@ -344,16 +344,14 @@ async function getUserNonce(userAddress) {
 }
 
 async function getGasFee(type) {
-  // Tron uses energy and bandwidth, but for simplicity, return fee limit in TRX
+  // Tron uses energy and bandwidth, but for simplicity, return estimated fee in TRX
   let fee;
-  if (type === 'low') {
-    fee = 10; // 10 TRX
-  } else if (type === 'medium') {
-    fee = 50; // 50 TRX
-  } else if (type === 'high') {
-    fee = 100; // 100 TRX
+  if (type === 'transfer') {
+    fee = 10; // Estimated TRX for transfer
+  } else if (type === 'mint' || type === 'burn') {
+    fee = 50; // Estimated TRX for mint/burn
   } else {
-    throw new Error('Invalid type. Use low, medium, or high.');
+    fee = 10; // default
   }
   return fee.toString();
 }

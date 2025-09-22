@@ -286,6 +286,29 @@ router.get('/wallet/token-balance', async (req, res) => {
   }
 });
 
+// Helper functions for prices (defined earlier in gas-fees)
+async function getEthPrice() {
+  try {
+    const resp = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd');
+    const data = await resp.json();
+    return data.ethereum.usd;
+  } catch (err) {
+    console.log('Failed to fetch ETH price, using fallback:', err.message);
+    return 4187; // Fallback price
+  }
+}
+
+async function getTrxPrice() {
+  try {
+    const resp = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=tron&vs_currencies=usd');
+    const data = await resp.json();
+    return data.tron.usd;
+  } catch (err) {
+    console.log('Failed to fetch TRX price, using fallback:', err.message);
+    return 0.336; // Fallback price
+  }
+}
+
 // Get gas fee estimate (AFRi_ERC20 or AFRi_TRC20)
 router.get('/gas-fee', async (req, res) => {
   const { blockchain, type } = req.query || {};
@@ -297,9 +320,13 @@ router.get('/gas-fee', async (req, res) => {
     const normalizedType = String(type).toLowerCase();
     let gasFee;
     if (normalizedChain === 'AFRI_ERC20') {
-      gasFee = await africoinService.getGasFee(normalizedType);
+      const ethFee = parseFloat(await africoinService.getGasFee(normalizedType));
+      const ethPrice = await getEthPrice();
+      gasFee = ethFee * ethPrice;
     } else if (normalizedChain === 'AFRI_TRC20') {
-      gasFee = await TronAfricoinService.getGasFee(normalizedType);
+      const trxFee = parseFloat(await TronAfricoinService.getGasFee(normalizedType));
+      const trxPrice = await getTrxPrice();
+      gasFee = trxFee * trxPrice;
     } else {
       return sendResponse(res, { success: false, message: 'Invalid blockchain. Use AFRi_ERC20 or AFRi_TRC20.', data: null, status: 400 });
     }
@@ -409,9 +436,22 @@ router.get('/gas-fees', async (req, res) => {
       return sendResponse(res, { success: false, message: 'Unsupported blockchain. Use AFRi_ERC20 or AFRi_TRC20', data: null, status: 400 });
     }
 
+    // Helper function to get current ETH price in USD
+    async function getEthPrice() {
+      try {
+        const resp = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd');
+        const data = await resp.json();
+        return data.ethereum.usd;
+      } catch (err) {
+        console.log('Failed to fetch ETH price, using fallback:', err.message);
+        return 4187; // Fallback price
+      }
+    }
+
     // ETH estimation using Etherscan gas oracle (if ETHERSCAN_API_KEY set), with fallback defaults
     async function getEthereumGasFees() {
       const gweiToEth = (g) => Number(g) * 1e-9;
+      let low, medium, high;
       try {
         const apiKey = process.env.ETHERSCAN_API_KEY || 'YourApiKeyToken';
         const url = `https://api.etherscan.io/api?module=gastracker&action=gasoracle&apikey=${apiKey}`;
@@ -420,30 +460,54 @@ router.get('/gas-fees', async (req, res) => {
         if (!data || data.status !== '1') throw new Error(data?.message || 'Etherscan error');
         const r = data.result;
         const baseFee = gweiToEth(parseFloat(r.suggestBaseFee));
-        const low = baseFee + gweiToEth(parseFloat(r.SafeGasPrice));
-        const medium = baseFee + gweiToEth(parseFloat(r.ProposeGasPrice));
-        const high = baseFee + gweiToEth(parseFloat(r.FastGasPrice));
-        return { blockchain: 'ETH', unit: 'ETH', fees: { low: { totalFee: low }, medium: { totalFee: medium }, high: { totalFee: high } } };
+        low = baseFee + gweiToEth(parseFloat(r.SafeGasPrice));
+        medium = baseFee + gweiToEth(parseFloat(r.ProposeGasPrice));
+        high = baseFee + gweiToEth(parseFloat(r.FastGasPrice));
       } catch (_) {
         // Fallback static values in ETH
         const baseFee = gweiToEth(30);
-        const low = baseFee + gweiToEth(35);
-        const medium = baseFee + gweiToEth(40);
-        const high = baseFee + gweiToEth(50);
-        return { blockchain: 'ETH', unit: 'ETH', fees: { low: { totalFee: low }, medium: { totalFee: medium }, high: { totalFee: high } } };
+        low = baseFee + gweiToEth(35);
+        medium = baseFee + gweiToEth(40);
+        high = baseFee + gweiToEth(50);
+      }
+
+      // Convert to AFRi_ERC20 (1 AFRi = 1 USD)
+      const ethPrice = await getEthPrice();
+      const lowAfri = low * ethPrice;
+      const mediumAfri = medium * ethPrice;
+      const highAfri = high * ethPrice;
+
+      return { blockchain: 'AFRi_ERC20', unit: 'AFRi_ERC20', fees: { low: { totalFee: lowAfri }, medium: { totalFee: mediumAfri }, high: { totalFee: highAfri } } };
+    }
+
+    // Helper function to get current TRX price in USD
+    async function getTrxPrice() {
+      try {
+        const resp = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=tron&vs_currencies=usd');
+        const data = await resp.json();
+        return data.tron.usd;
+      } catch (err) {
+        console.log('Failed to fetch TRX price, using fallback:', err.message);
+        return 0.336; // Fallback price
       }
     }
 
     // TRON estimation: static presets, matching your sample
     async function getTronGasFees() {
+      const trxPrice = await getTrxPrice();
+      const lowAfri = 0.3 * trxPrice;
+      const mediumAfri = 0.4 * trxPrice;
+      const highAfri = 0.4 * trxPrice;
+      const urgentAfri = 0.4 * trxPrice;
+
       return {
-        blockchain: 'TRX',
-        unit: 'TRX',
+        blockchain: 'AFRi_TRC20',
+        unit: 'AFRi_TRC20',
         fees: {
-          low: { totalFee: 0.3 },
-          medium: { totalFee: 0.4 },
-          high: { totalFee: 0.4 },
-          urgent: { totalFee: 0.4 }
+          low: { totalFee: lowAfri },
+          medium: { totalFee: mediumAfri },
+          high: { totalFee: highAfri },
+          urgent: { totalFee: urgentAfri }
         }
       };
     }
