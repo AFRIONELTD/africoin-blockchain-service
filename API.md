@@ -464,6 +464,65 @@ Fetch balances for one or both chains in a single request.
 
 ---
 
+### 15. Get Transaction History
+
+**GET** `/api/africoin/transactions/:address?type=AFRi_ERC20|AFRi_TRC20&page=<page>&size=<size>&fromTime=<iso8601>&toTime=<iso8601>`
+
+Fetch full transaction history for a specific wallet address, including native coin transfers and all token transfers (not limited to AFRI), on Ethereum or Tron.
+
+- **JWT protected**: Requires Authorization header
+- **Network-aware**: When `NODE_ENV=test`, explorers and APIs use Sepolia (ETH) and Shasta (TRON)
+
+**Path Parameter:**
+- `address`: Wallet address to fetch transfers for (Ethereum or Tron format depending on `type`)
+
+**Query Parameters:**
+- `type` (required): `AFRi_ERC20` or `AFRi_TRC20`
+- `page` (optional): zero-based page index (default: `0`)
+- `size` (optional): page size (default: `20`; max `50` on Tron)
+- `fromTime` (optional): ISO 8601 datetime to filter transactions from (inclusive)
+- `toTime` (optional): ISO 8601 datetime to filter transactions to (inclusive)
+
+**Behavior & Data Sources:**
+- `AFRi_ERC20` (Ethereum): Combines Etherscan `txlist` (native) and `tokentx` (ERC20) for the address. Uses Sepolia endpoints when in test mode.
+- `AFRi_TRC20` (Tron): Combines TronGrid `/transactions` (native TRX) and `/transactions/trc20` (all TRC20) for the address. Uses Shasta endpoints when in test mode.
+
+**Response:
+```json
+{
+  "success": true,
+  "message": "Transactions fetched successfully",
+  "data": {
+    "transactions": [
+      {
+        "hash": "0x... or <trx-hash>",
+        "from": "0x... or T...",
+        "to": "0x... or T...",
+        "value": "<token amount in human units>",
+        "timestamp": 1717622400000,
+        "status": "confirmed|failed",
+        "network": "ETH|TRX",
+        "tokenSymbol": "AFRI",
+        "blockNumber": 12345678,
+        "explorerUrl": "https://.../tx/<hash>"
+      }
+    ],
+    "pagination": {
+      "page": 0,
+      "size": 20,
+      "total": 42
+    }
+  }
+}
+```
+
+**Notes:**
+- Results include native transfers and all ERC-20/TRC-20 token transfers for the address (not limited to AFRI only).
+- Ensure the following env vars are set for accurate results and rate limits:
+  - `CONTRACT_ADDRESS_ETH`, `CONTRACT_ADDRESS_TRON`
+  - `ETHERSCAN_API_KEY` (optional but recommended)
+  - `TRON_PRO_API_KEY` (optional but recommended)
+- Testnet selection is automatic: Sepolia (ETH) and Shasta (TRON) when respective testnet configs are active.
 
 ---
 
