@@ -281,5 +281,6 @@ module.exports = {
   transfer,
   metaTransfer,
   metaTransferAuto,
-  AFRICOIN_ABI // Export the ABI for use in other modules
+  AFRICOIN_ABI, // Export the ABI for use in other modules
+  provider
 };
