@@ -6,6 +6,7 @@ const TronWalletService = require('../services/TronWalletService');
 const TronAfricoinService = require('../services/TronAfricoinService');
 const { sendResponse } = require('../utils/response');
 const { authenticateToken } = require('../middleware/auth');
+const { ethers } = require('ethers');
 
 // Protect all routes with JWT authentication
 router.use(authenticateToken);
@@ -885,6 +886,117 @@ router.get('/transactions/:address', async (req, res) => {
         transactions: result.transactions,
         pagination: { page, size, total: result.total }
       }
+    });
+  } catch (err) {
+    return sendResponse(res, { success: false, message: err.message, data: null, status: 500 });
+  }
+});
+
+// Transaction details by hash
+// GET /api/africoin/transactions/hash/:hash?type=AFRi_ERC20|AFRi_TRC20
+router.get('/transactions/hash/:hash', async (req, res) => {
+  try {
+    const { hash } = req.params;
+    const type = String(req.query.type || '').toUpperCase();
+
+    if (!hash) {
+      return sendResponse(res, { success: false, message: 'Transaction hash is required', data: null, status: 400 });
+    }
+
+    if (type !== 'AFRI_ERC20' && type !== 'AFRI_TRC20') {
+      return sendResponse(res, { success: false, message: 'type query must be AFRi_ERC20 or AFRi_TRC20', data: null, status: 400 });
+    }
+
+    let transactionDetails;
+
+    if (type === 'AFRI_ERC20') {
+      const convertedHash = hash.startsWith('0x') ? hash : `0x${hash}`;
+
+      const tx = await africoinService.provider.getTransaction(convertedHash);
+      if (!tx) {
+        return sendResponse(res, { success: false, message: 'Transaction not found', data: null, status: 404 });
+      }
+
+      const receipt = await africoinService.provider.getTransactionReceipt(convertedHash);
+
+      transactionDetails = {
+        hash: tx.hash,
+        nonce: tx.nonce,
+        from: tx.from,
+        to: tx.to,
+        value: ethers.formatEther(tx.value || 0n),
+        gasLimit: tx.gasLimit?.toString(),
+        gasPrice: tx.gasPrice ? ethers.formatUnits(tx.gasPrice, 'gwei') : undefined,
+        maxFeePerGas: tx.maxFeePerGas ? ethers.formatUnits(tx.maxFeePerGas, 'gwei') : undefined,
+        maxPriorityFeePerGas: tx.maxPriorityFeePerGas ? ethers.formatUnits(tx.maxPriorityFeePerGas, 'gwei') : undefined,
+        data: tx.data,
+        chainId: Number(tx.chainId),
+        blockHash: tx.blockHash,
+        blockNumber: tx.blockNumber,
+        timestamp: receipt?.timestamp ? Number(receipt.timestamp) * 1000 : undefined,
+        status: receipt ? (receipt.status === 1 ? 'confirmed' : 'failed') : 'pending',
+        gasUsed: receipt?.gasUsed?.toString(),
+        cumulativeGasUsed: receipt?.cumulativeGasUsed?.toString(),
+        logs: receipt?.logs || [],
+        confirmations: receipt ? await africoinService.provider.getBlockNumber() - (receipt.blockNumber || 0) + 1 : 0,
+        explorerUrl: process.env.NODE_ENV === 'test'
+          ? `https://sepolia.etherscan.io/tx/${convertedHash}`
+          : `https://etherscan.io/tx/${convertedHash}`
+      };
+
+      if (!transactionDetails.timestamp && receipt?.blockNumber) {
+        const block = await africoinService.provider.getBlock(receipt.blockNumber);
+        if (block?.timestamp) {
+          transactionDetails.timestamp = Number(block.timestamp) * 1000;
+        }
+      }
+    } else {
+      const tronWeb = TronWalletService.tronWeb;
+      if (!tronWeb) {
+        throw new Error('TronWeb not initialized');
+      }
+
+      const tx = await tronWeb.trx.getTransaction(hash);
+      if (!tx) {
+        return sendResponse(res, { success: false, message: 'Transaction not found', data: null, status: 404 });
+      }
+
+      const receipt = await tronWeb.trx.getTransactionInfo(hash);
+      const fromHex = tx.raw_data?.contract?.[0]?.parameter?.value?.owner_address;
+      const toHex = tx.raw_data?.contract?.[0]?.parameter?.value?.to_address;
+      const amount = tx.raw_data?.contract?.[0]?.parameter?.value?.amount || 0;
+
+      transactionDetails = {
+        hash,
+        from: fromHex ? tronWeb.address.fromHex(fromHex) : null,
+        to: toHex ? tronWeb.address.fromHex(toHex) : null,
+        value: (Number(amount) / 1e6).toString(),
+        timestamp: receipt?.blockTimeStamp || receipt?.block_timestamp || tx?.raw_data?.timestamp,
+        blockNumber: receipt?.blockNumber,
+        blockHash: receipt?.blockHash,
+        status: receipt?.receipt?.result === 'SUCCESS' ? 'confirmed' : 'failed',
+        fee: receipt?.fee ? (Number(receipt.fee) / 1e6).toString() : undefined,
+        energyUsage: receipt?.receipt?.energy_usage_total,
+        netUsage: receipt?.receipt?.net_usage,
+        contractResult: receipt?.contractResult,
+        logs: receipt?.log || receipt?.logs || [],
+        explorerUrl: process.env.NODE_ENV === 'test'
+          ? `https://shasta.tronscan.org/#/transaction/${hash}`
+          : `https://tronscan.org/#/transaction/${hash}`
+      };
+
+      if (receipt?.blockNumber && !transactionDetails.timestamp) {
+        const block = await tronWeb.trx.getBlock(receipt.blockNumber);
+        if (block?.block_header?.raw_data?.timestamp) {
+          transactionDetails.timestamp = block.block_header.raw_data.timestamp;
+        }
+      }
+    }
+
+    return sendResponse(res, {
+      success: true,
+      message: 'Transaction details retrieved successfully',
+      data: transactionDetails
     });
   } catch (err) {
     return sendResponse(res, { success: false, message: err.message, data: null, status: 500 });

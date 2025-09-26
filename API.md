@@ -526,6 +526,62 @@ Fetch full transaction history for a specific wallet address, including native c
 
 ---
 
+### 16. Get Transaction Details by Hash
+
+**GET** `/api/africoin/transactions/hash/:hash?type=AFRi_ERC20|AFRi_TRC20`
+
+Retrieve detailed information for a single transaction on either Ethereum or Tron by providing the transaction hash and blockchain type.
+
+- **JWT protected**: Requires Authorization header
+- **Network-aware**: When `NODE_ENV=test`, explorer links and providers use Sepolia (ETH) and Shasta (TRON)
+
+**Path Parameter:**
+- `hash`: Transaction hash (0x-prefixed for Ethereum, base58 for Tron)
+
+**Query Parameters:**
+- `type` (required): `AFRi_ERC20` or `AFRi_TRC20`
+
+**Behavior & Data Sources:**
+- `AFRi_ERC20`: Uses the shared Ethereum provider to fetch both the transaction and its receipt, enriches the response with normalized values (ETH, gwei), confirmation count, logs, and block timestamp fallback.
+- `AFRi_TRC20`: Uses the configured TronWalletService to load the transaction and receipt, converts SUN to TRX, includes energy usage, and backfills timestamps from the block header when missing.
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Transaction fetched successfully",
+  "data": {
+    "hash": "0x...",
+    "blockchain": "AFRi_ERC20",
+    "from": "0x...",
+    "to": "0x...",
+    "value": "0.1234",
+    "fee": {
+      "maxFeePerGasGwei": "27.45",
+      "gasUsed": "21000"
+    },
+    "status": "confirmed",
+    "timestamp": 1718200000000,
+    "confirmations": 12,
+    "logs": [
+      {
+        "address": "0x...",
+        "topics": ["0xddf..."],
+        "data": "0x..."
+      }
+    ],
+    "explorerUrl": "https://.../tx/0x..."
+  }
+}
+```
+
+**Error Cases:**
+- Returns `400` when `hash` or `type` are missing, or when the blockchain type is unsupported.
+- Returns `404` if the transaction cannot be found on the specified blockchain.
+- Returns `500` for unexpected provider or TronGrid failures, preserving the standard error envelope.
+
+---
+
 ## Example: Authenticated Request
 
 ```sh
