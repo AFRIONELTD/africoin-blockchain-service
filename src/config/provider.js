@@ -1,17 +1,20 @@
 const { ethers } = require('ethers');
 require('dotenv').config();
 
-// Ensure SEPOLIA_RPC_URL is set
-if (!process.env.SEPOLIA_RPC_URL) {
-  throw new Error('SEPOLIA_RPC_URL environment variable is not set. Please set it to your Ethereum node RPC URL.');
+// Prefer mainnet RPC when provided, otherwise fall back to Sepolia
+const rpcUrl = process.env.ETHEREUM_RPC_URL || process.env.SEPOLIA_RPC_URL;
+
+if (!rpcUrl) {
+  throw new Error('ETHEREUM_RPC_URL or SEPOLIA_RPC_URL must be set to initialize the Ethereum provider.');
 }
 
-const provider = new ethers.JsonRpcProvider(process.env.SEPOLIA_RPC_URL);
+const provider = new ethers.JsonRpcProvider(rpcUrl);
 
 const config = {
   ethereum: {
     provider,
-    rpcUrl: process.env.SEPOLIA_RPC_URL
+    rpcUrl,
+    network: process.env.ETHEREUM_RPC_URL ? process.env.ETHEREUM_NETWORK || 'mainnet' : 'sepolia'
   },
   blockchain: {
     tronRpcUrl: process.env.TRON_RPC_URL || 'https://api.trongrid.io',
