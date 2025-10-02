@@ -264,6 +264,8 @@ router.get('/wallet/token-balance', async (req, res) => {
       const { AFRICOIN_ABI } = require('../services/africoinService');
       const config = require('../config/provider');
       const contractAddress = process.env.CONTRACT_ADDRESS_ETH || config.ethereum?.contractAddress;
+      console.log('Using RPC URL:', config.ethereum.rpcUrl);
+      console.log('Using contract address:', contractAddress);
       if (!contractAddress) {
         return sendResponse(res, { success: false, message: 'Africoin contract address for AFRi_ERC20 not set.', data: null, status: 500 });
       }
