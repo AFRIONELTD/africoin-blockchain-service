@@ -35,10 +35,7 @@ class TronWalletService extends IWalletService {
       if (callerPk) {
         const cleanPk = String(callerPk).startsWith('0x') ? String(callerPk).slice(2) : String(callerPk);
         const callerBase58 = this.tronWeb.address.fromPrivateKey(cleanPk);
-        this.tronWeb.defaultAddress = {
-          base58: callerBase58,
-          hex: this.tronWeb.address.toHex(callerBase58)
-        };
+        this.tronWeb.setAddress(callerBase58);
         logger.info('TronWeb default caller set to', callerBase58);
       }
     } catch (err) {
