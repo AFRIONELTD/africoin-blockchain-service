@@ -428,7 +428,53 @@ Get current gas fee estimates for the specified blockchain.
 
 ---
 
-### 14. Get Multiple Wallet Token Balances
+### 14. Get Total Tokens Minted
+
+**GET** `/api/africoin/minted`
+
+Get the cumulative total of all Africoin tokens ever minted on a specific blockchain.
+
+**Query Parameters:**
+- `blockchain`: `AFRi_ERC20` or `AFRi_TRC20` (default: `AFRi_ERC20`)
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Total minted (AFRI)",
+  "data": {
+    "blockchain": "AFRi_ERC20",
+    "totalMinted": "33250.5"
+  }
+}
+```
+
+---
+
+### 15. Get Total Tokens Burned
+
+**GET** `/api/africoin/burned`
+
+Get the cumulative total of all Africoin tokens ever burned on a specific blockchain.
+
+**Query Parameters:**
+- `blockchain`: `AFRi_ERC20` or `AFRi_TRC20` (default: `AFRi_ERC20`)
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Total burned (AFRI)",
+  "data": {
+    "blockchain": "AFRi_ERC20",
+    "totalBurned": "3125.0"
+  }
+}
+```
+
+---
+
+### 16. Get Multiple Wallet Token Balances
 
 **GET** `/api/africoin/wallet/token-balances?AFRi_ERC20=0x...&AFRi_TRC20=T...`
 
@@ -464,7 +510,7 @@ Fetch balances for one or both chains in a single request.
 
 ---
 
-### 15. Get Transaction History
+### 17. Get Transaction History
 
 **GET** `/api/africoin/transactions/:address?type=AFRi_ERC20|AFRi_TRC20&page=<page>&size=<size>&fromTime=<iso8601>&toTime=<iso8601>`
 
@@ -487,7 +533,7 @@ Fetch full transaction history for a specific wallet address, including native c
 - `AFRi_ERC20` (Ethereum): Combines Etherscan `txlist` (native) and `tokentx` (ERC20) for the address. Uses Sepolia endpoints when in test mode.
 - `AFRi_TRC20` (Tron): Combines TronGrid `/transactions` (native TRX) and `/transactions/trc20` (all TRC20) for the address. Uses Shasta endpoints when in test mode.
 
-**Response:
+**Response:**
 ```json
 {
   "success": true,
@@ -526,7 +572,7 @@ Fetch full transaction history for a specific wallet address, including native c
 
 ---
 
-### 16. Get Transaction Details by Hash
+### 18. Get Transaction Details by Hash
 
 **GET** `/api/africoin/transactions/hash/:hash?type=AFRi_ERC20|AFRi_TRC20`
 

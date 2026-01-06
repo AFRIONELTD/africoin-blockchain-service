@@ -242,10 +242,10 @@ async function getTronStats(contractAddr) {
   }
 }
 
-// Get TRON token decimals (fall back to 6)
+// Get TRON token decimals (fall back to 18)
 async function getTronDecimals(contractAddr) {
   const tronWeb = TronWalletService.tronWeb;
-  if (!tronWeb) return 6;
+  if (!tronWeb) return 18;
   try {
     const cleanAddr = String(contractAddr).trim();
     const base58Contract = cleanAddr.startsWith('T') ? cleanAddr : tronWeb.address.fromHex(cleanAddr);
@@ -256,9 +256,9 @@ async function getTronDecimals(contractAddr) {
       return Number(d.toString());
     }
   } catch (err) {
-    logger.warn(`Could not read TRON decimals for ${contractAddr}, defaulting to 6:`, err?.message || err);
+    logger.warn(`Could not read TRON decimals for ${contractAddr}, defaulting to 18:`, err?.message || err);
   }
-  return 6;
+  return 18;
 }
 
 // --- UPDATED ROUTES ---
