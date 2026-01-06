@@ -28,6 +28,22 @@ class TronWalletService extends IWalletService {
         ? config.blockchain?.tronTestnetRpcUrl
         : config.blockchain?.tronRpcUrl,
     });
+    // Optionally set a default caller address so RPC calls include owner_address.
+    // Prefer explicit TRON_CALLER_PRIVATE_KEY, fall back to PRIVATE_KEY_SHASTA if present.
+    try {
+      const callerPk = process.env.TRON_CALLER_PRIVATE_KEY || process.env.PRIVATE_KEY_SHASTA;
+      if (callerPk) {
+        const cleanPk = String(callerPk).startsWith('0x') ? String(callerPk).slice(2) : String(callerPk);
+        const callerBase58 = this.tronWeb.address.fromPrivateKey(cleanPk);
+        this.tronWeb.defaultAddress = {
+          base58: callerBase58,
+          hex: this.tronWeb.address.toHex(callerBase58)
+        };
+        logger.info('TronWeb default caller set to', callerBase58);
+      }
+    } catch (err) {
+      logger.warn('Failed to set TronWeb defaultAddress from env private key', err?.message || err);
+    }
   }
 
   async generateWallet(options = {}) {
@@ -90,13 +106,29 @@ class TronWalletService extends IWalletService {
 
   async getTokenBalance(address, tokenContractAddress, tokenAbi) {
     try {
-      const contract = await this.tronWeb.contract(tokenAbi, tokenContractAddress);
-      // Pass the address as the 'from' context to avoid owner_address error
-      const balance = await contract.balanceOf(address).call({ from: address });
-      return ethers.formatUnits(BigInt(balance.toString()), 18);
+      // Validate the target address
+      if (!this.tronWeb.isAddress(address)) {
+        throw new Error(`Invalid TRON wallet address: ${address}`);
+      }
+
+      // Ensure contract address is Base58 (TronWeb.contract expects base58)
+      const base58Contract = tokenContractAddress && tokenContractAddress.startsWith('T')
+        ? tokenContractAddress
+        : this.tronWeb.address.fromHex(tokenContractAddress);
+
+      // Determine caller (base58) and convert to HEX for owner_address requirement
+      const callerBase58 = (this.tronWeb.defaultAddress && this.tronWeb.defaultAddress.base58) ? this.tronWeb.defaultAddress.base58 : address;
+      const callerHex = this.tronWeb.address.toHex(callerBase58);
+
+      const contract = await this.tronWeb.contract(tokenAbi, base58Contract);
+      // Use Base58 for the balanceOf argument, but supply owner_address in HEX
+      const balance = await contract.balanceOf(address).call({ from: callerHex });
+
+      // AFRI TRC20 uses 6 decimals on TRON; adjust if needed
+      return ethers.formatUnits(BigInt(balance.toString()), 6);
     } catch (error) {
-      logger.error('Error getting TRC20 token balance:', error);
-      throw new Error(`Failed to get TRC20 token balance: ${error.message}`);
+      logger.error('Error getting TRC20 token balance:', error?.message || error);
+      throw new Error(`Failed to get TRC20 token balance: ${error.message || error}`);
     }
   }
 }

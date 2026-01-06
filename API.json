@@ -1,0 +1,556 @@
+{
+  "apiDocumentation": {
+    "title": "Africoin Service API Documentation",
+    "authentication": {
+      "type": "JWT Bearer Token",
+      "header": "Authorization",
+      "headerExample": "Bearer <your-jwt-token>",
+      "tokenGeneration": "node africoin-smart-contract/africoin-service/scripts/generateToken.js"
+    },
+    "standardResponseFormat": {
+      "success": "boolean",
+      "message": "string",
+      "data": "object or null"
+    },
+    "permissionLevels": {
+      "owner": "The original deployer/controller of the smart contract",
+      "admin": "Addresses granted special privileges by the owner (can mint/burn)",
+      "user": "Any wallet holder who can transfer their own tokens"
+    },
+    "privateKeyRequirements": [
+      {
+        "operation": "Mint Tokens",
+        "privateKeyRequired": "Admin's private key",
+        "permissionLevel": "Admin Only",
+        "notes": "Admin mints tokens to any address"
+      },
+      {
+        "operation": "Add Admin",
+        "privateKeyRequired": "Owner's private key",
+        "permissionLevel": "Owner Only",
+        "notes": "Owner grants admin privileges"
+      },
+      {
+        "operation": "Remove Admin",
+        "privateKeyRequired": "Owner's private key",
+        "permissionLevel": "Owner Only",
+        "notes": "Owner revokes admin privileges (ERC20 only)"
+      },
+      {
+        "operation": "Transfer Tokens",
+        "privateKeyRequired": "Sender's private key",
+        "permissionLevel": "User Operation",
+        "notes": "Token holder transfers their own tokens"
+      },
+      {
+        "operation": "Burn Tokens",
+        "privateKeyRequired": "Admin's private key",
+        "permissionLevel": "Admin Only",
+        "notes": "Admin burns tokens from any address"
+      }
+    ],
+    "endpoints": [
+      {
+        "id": 1,
+        "name": "Mint Tokens",
+        "method": "POST",
+        "path": "/api/africoin/mint",
+        "description": "Mint Africoin tokens on AFRi_ERC20 or AFRi_TRC20. Admin only operation.",
+        "authentication": true,
+        "requestBody": {
+          "blockchain": "AFRi_ERC20 | AFRi_TRC20",
+          "privateKey": "<admin's private key>",
+          "to": "<recipient address>",
+          "amount": "<amount in token units>"
+        },
+        "importantNotes": [
+          "privateKey: Must be the private key of an admin (not the recipient)",
+          "to: The wallet address that will receive the minted tokens",
+          "For AFRi_TRC20, the private key should not include a leading 0x",
+          "Only admins can mint tokens"
+        ],
+        "response": {
+          "success": true,
+          "message": "Mint successful",
+          "data": {
+            "txHash": "<transaction hash>",
+            "explorerUrl": "<blockchain explorer URL>"
+          }
+        }
+      },
+      {
+        "id": 2,
+        "name": "Add Admin",
+        "method": "POST",
+        "path": "/api/africoin/add-admin",
+        "description": "Add an admin to the Africoin contract. Owner only operation.",
+        "authentication": true,
+        "requestBody": {
+          "blockchain": "AFRi_ERC20 | AFRi_TRC20",
+          "privateKey": "<owner's private key>",
+          "admin": "<new admin address to be added>"
+        },
+        "importantNotes": [
+          "privateKey: Must be the private key of the contract owner (not an admin)",
+          "admin: The wallet address that will be granted admin privileges",
+          "For AFRi_TRC20, the private key should not include a leading 0x",
+          "Only the contract owner can add new admins"
+        ],
+        "response": {
+          "success": true,
+          "message": "Admin added successfully",
+          "data": {
+            "txHash": "<transaction hash>",
+            "explorerUrl": "<blockchain explorer URL>"
+          }
+        }
+      },
+      {
+        "id": 3,
+        "name": "Remove Admin",
+        "method": "POST",
+        "path": "/api/africoin/remove-admin",
+        "description": "Remove an admin from the contract. Owner only operation (AFRi_ERC20 only).",
+        "authentication": true,
+        "requestBody": {
+          "privateKey": "<owner's private key>",
+          "admin": "<admin address to be removed>"
+        },
+        "importantNotes": [
+          "privateKey: Must be the private key of the contract owner (not an admin)",
+          "admin: The admin address to be removed from admin privileges",
+          "Only available for AFRi_ERC20 blockchain",
+          "Only the contract owner can remove admins"
+        ],
+        "response": {
+          "success": true,
+          "message": "Admin removed successfully",
+          "data": {
+            "txHash": "<transaction hash>",
+            "explorerUrl": "<blockchain explorer URL>"
+          }
+        }
+      },
+      {
+        "id": 4,
+        "name": "Check If Address is Admin",
+        "method": "GET",
+        "path": "/api/africoin/is-admin/:address",
+        "description": "Check if an address has admin privileges (AFRi_ERC20 only).",
+        "authentication": true,
+        "pathParameters": {
+          "address": "Wallet address to check"
+        },
+        "response": {
+          "success": true,
+          "message": "Admin status retrieved successfully",
+          "data": {
+            "isAdmin": "true | false"
+          }
+        }
+      },
+      {
+        "id": 5,
+        "name": "Get Africoin Token Balance (AFRi_ERC20 only)",
+        "method": "GET",
+        "path": "/api/africoin/balance/:address",
+        "description": "Get token balance for a specific address on AFRi_ERC20.",
+        "authentication": true,
+        "pathParameters": {
+          "address": "Wallet address"
+        },
+        "response": {
+          "success": true,
+          "message": "Balance retrieved successfully",
+          "data": {
+            "balance": "<amount>"
+          }
+        }
+      },
+      {
+        "id": 6,
+        "name": "Create Wallets",
+        "method": "POST",
+        "path": "/api/africoin/create-wallets",
+        "description": "Create one or both wallets (AFRi_ERC20, AFRi_TRC20).",
+        "authentication": true,
+        "requestBody": {
+          "type": "AFRi_ERC20 | AFRi_TRC20 | null",
+          "mnemonic": "<optional seed phrase>"
+        },
+        "response": {
+          "success": true,
+          "message": "Wallets generated successfully",
+          "data": {
+            "seedPhrase": "<mnemonic>",
+            "wallets": [
+              {
+                "blockchain": "AFRi_ERC20 | AFRi_TRC20",
+                "success": true,
+                "address": "<address>",
+                "privateKey": "<privateKey>",
+                "timestamp": "<timestamp>"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": 7,
+        "name": "Create Wallet (Single)",
+        "method": "GET",
+        "path": "/api/africoin/create-wallet",
+        "description": "Create a single wallet for the specified blockchain type.",
+        "authentication": true,
+        "queryParameters": {
+          "type": "AFRi_ERC20 | AFRi_TRC20"
+        },
+        "response": {
+          "success": true,
+          "message": "Wallet generated successfully",
+          "data": {
+            "address": "<address>",
+            "publicKey": "<publicKey>",
+            "network": "<network>",
+            "type": "AFRi_ERC20 | AFRi_TRC20",
+            "mnemonic": "<mnemonic>",
+            "derivationPath": "<path>",
+            "privateKey": "<privateKey>"
+          }
+        }
+      },
+      {
+        "id": 8,
+        "name": "Transfer Tokens",
+        "method": "POST",
+        "path": "/api/africoin/transfer",
+        "description": "Transfer Africoin tokens from one wallet to another. User operation.",
+        "authentication": true,
+        "requestBody": {
+          "blockchain": "AFRi_ERC20 | AFRi_TRC20",
+          "privateKey": "<sender's private key>",
+          "to": "<recipient address>",
+          "amount": "<amount in token units>"
+        },
+        "importantNotes": [
+          "privateKey: Must be the private key of the token sender (the wallet that owns the tokens)",
+          "to: The wallet address that will receive the tokens",
+          "The sender must have sufficient token balance and native currency for gas fees",
+          "For AFRi_TRC20, the private key should not include a leading 0x",
+          "Any wallet holder can transfer their own tokens"
+        ],
+        "response": {
+          "success": true,
+          "message": "Transfer successful",
+          "data": {
+            "txHash": "<transaction hash>",
+            "explorerUrl": "<blockchain explorer URL>"
+          }
+        }
+      },
+      {
+        "id": 9,
+        "name": "Get Africoin Token Balance (AFRi_ERC20 or AFRi_TRC20)",
+        "method": "GET",
+        "path": "/api/africoin/wallet/token-balance",
+        "description": "Get token balance for a specific address on either blockchain.",
+        "authentication": true,
+        "queryParameters": {
+          "blockchain": "AFRi_ERC20 | AFRi_TRC20",
+          "address": "wallet address"
+        },
+        "response": {
+          "success": true,
+          "message": "Token balance retrieved successfully",
+          "data": {
+            "balance": "<amount>"
+          }
+        }
+      },
+      {
+        "id": 10,
+        "name": "Validate Address",
+        "method": "GET",
+        "path": "/api/africoin/validate-address",
+        "description": "Validates a wallet address for the specified blockchain.",
+        "authentication": true,
+        "queryParameters": {
+          "blockchain": "AFRi_ERC20 | AFRi_TRC20",
+          "address": "address to validate"
+        },
+        "blockchainValidation": {
+          "AFRi_ERC20": "Ethereum address validation",
+          "AFRi_TRC20": "Tron address validation"
+        },
+        "responseValid": {
+          "success": true,
+          "message": "Valid address",
+          "data": {
+            "isValid": true
+          }
+        },
+        "responseInvalid": {
+          "success": false,
+          "message": "Invalid address",
+          "data": {
+            "isValid": false
+          }
+        }
+      },
+      {
+        "id": 11,
+        "name": "Burn Tokens",
+        "method": "POST",
+        "path": "/api/africoin/burn",
+        "description": "Burn (permanently destroy) Africoin tokens from a specified address. Admin only operation.",
+        "authentication": true,
+        "requestBody": {
+          "blockchain": "AFRi_ERC20 | AFRi_TRC20",
+          "privateKey": "<admin's private key>",
+          "from": "<address to burn tokens from>",
+          "amount": "<amount in token units>"
+        },
+        "importantNotes": [
+          "privateKey: Must be the private key of an admin (not the token holder)",
+          "from: The wallet address from which tokens will be burned/destroyed",
+          "The specified address must have sufficient token balance",
+          "For AFRi_TRC20, the private key should not include a leading 0x",
+          "Only admins can burn tokens from any address",
+          "Burned tokens are permanently removed from circulation"
+        ],
+        "response": {
+          "success": true,
+          "message": "Burn successful",
+          "data": {
+            "txHash": "<transaction hash>",
+            "explorerUrl": "<blockchain explorer URL>"
+          }
+        }
+      },
+      {
+        "id": 12,
+        "name": "Get Gas Fee Estimate",
+        "method": "GET",
+        "path": "/api/africoin/gas-fee",
+        "description": "Get estimated gas fee for a specific operation.",
+        "authentication": true,
+        "queryParameters": {
+          "blockchain": "AFRi_ERC20 | AFRi_TRC20",
+          "type": "operation type (e.g., mint, transfer, burn)"
+        },
+        "response": {
+          "success": true,
+          "message": "Gas fee retrieved successfully",
+          "data": {
+            "gasFee": "<estimated fee in AFRi tokens>"
+          }
+        }
+      },
+      {
+        "id": 13,
+        "name": "Get Gas Fees",
+        "method": "GET",
+        "path": "/api/africoin/gas-fees",
+        "description": "Get current gas fee estimates for the specified blockchain.",
+        "authentication": true,
+        "queryParameters": {
+          "blockchain": "AFRi_ERC20 | AFRi_TRC20"
+        },
+        "responseERC20": {
+          "success": true,
+          "message": "Gas fees fetched",
+          "data": {
+            "blockchain": "AFRi_ERC20",
+            "unit": "AFRi_ERC20",
+            "fees": {
+              "low": {
+                "totalFee": 0.4187
+              },
+              "medium": {
+                "totalFee": 0.8374
+              },
+              "high": {
+                "totalFee": 1.2561
+              }
+            }
+          }
+        },
+        "responseTRC20": {
+          "success": true,
+          "message": "Gas fees fetched",
+          "data": {
+            "blockchain": "AFRi_TRC20",
+            "unit": "AFRi_TRC20",
+            "fees": {
+              "low": {
+                "totalFee": 0.1008
+              },
+              "medium": {
+                "totalFee": 0.1344
+              },
+              "high": {
+                "totalFee": 0.1344
+              },
+              "urgent": {
+                "totalFee": 0.1344
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": 14,
+        "name": "Get Multiple Wallet Token Balances",
+        "method": "GET",
+        "path": "/api/africoin/wallet/token-balances",
+        "description": "Fetch balances for one or both chains in a single request.",
+        "authentication": true,
+        "queryParameters": {
+          "AFRi_ERC20": "Ethereum wallet address (optional)",
+          "AFRi_TRC20": "Tron wallet address (optional)",
+          "note": "At least one parameter must be provided"
+        },
+        "responseBothPresent": {
+          "success": true,
+          "message": "Token balances retrieved successfully",
+          "data": {
+            "AFRi_ERC20": {
+              "address": "0x...",
+              "balance": "..."
+            },
+            "AFRi_TRC20": {
+              "address": "T...",
+              "balance": "..."
+            }
+          }
+        },
+        "responsePartialFailure": {
+          "success": false,
+          "message": "Some balances failed: AFRi_TRC20: <error>",
+          "data": {
+            "AFRi_ERC20": {
+              "address": "0x...",
+              "balance": "..."
+            }
+          }
+        }
+      },
+      {
+        "id": 15,
+        "name": "Get Transaction History",
+        "method": "GET",
+        "path": "/api/africoin/transactions/:address",
+        "description": "Fetch full transaction history for a specific wallet address, including native coin transfers and all token transfers (not limited to AFRI), on Ethereum or Tron.",
+        "authentication": true,
+        "jwtProtected": true,
+        "networkAware": "When NODE_ENV=test, explorers and APIs use Sepolia (ETH) and Shasta (TRON)",
+        "pathParameters": {
+          "address": "Wallet address to fetch transfers for (Ethereum or Tron format depending on type)"
+        },
+        "queryParameters": {
+          "type": "AFRi_ERC20 | AFRi_TRC20 (required)",
+          "page": "zero-based page index (optional, default: 0)",
+          "size": "page size (optional, default: 20; max 50 on Tron)",
+          "fromTime": "ISO 8601 datetime to filter transactions from (optional, inclusive)",
+          "toTime": "ISO 8601 datetime to filter transactions to (optional, inclusive)"
+        },
+        "behaviorAndDataSources": {
+          "AFRi_ERC20": "Combines Etherscan txlist (native) and tokentx (ERC20) for the address. Uses Sepolia endpoints when in test mode.",
+          "AFRi_TRC20": "Combines TronGrid /transactions (native TRX) and /transactions/trc20 (all TRC20) for the address. Uses Shasta endpoints when in test mode."
+        },
+        "response": {
+          "success": true,
+          "message": "Transactions fetched successfully",
+          "data": {
+            "transactions": [
+              {
+                "hash": "0x... or <trx-hash>",
+                "from": "0x... or T...",
+                "to": "0x... or T...",
+                "value": "<token amount in human units>",
+                "timestamp": 1717622400000,
+                "status": "confirmed|failed",
+                "network": "ETH|TRX",
+                "tokenSymbol": "AFRI",
+                "blockNumber": 12345678,
+                "explorerUrl": "https://.../tx/<hash>"
+              }
+            ],
+            "pagination": {
+              "page": 0,
+              "size": 20,
+              "total": 42
+            }
+          }
+        },
+        "notes": [
+          "Results include native transfers and all ERC-20/TRC-20 token transfers for the address (not limited to AFRI only)",
+          "Ensure the following env vars are set for accurate results and rate limits: CONTRACT_ADDRESS_ETH, CONTRACT_ADDRESS_TRON, ETHERSCAN_API_KEY (optional but recommended), TRON_PRO_API_KEY (optional but recommended)",
+          "Testnet selection is automatic: Sepolia (ETH) and Shasta (TRON) when respective testnet configs are active"
+        ]
+      },
+      {
+        "id": 16,
+        "name": "Get Transaction Details by Hash",
+        "method": "GET",
+        "path": "/api/africoin/transactions/hash/:hash",
+        "description": "Retrieve detailed information for a single transaction on either Ethereum or Tron by providing the transaction hash and blockchain type.",
+        "authentication": true,
+        "jwtProtected": true,
+        "networkAware": "When NODE_ENV=test, explorer links and providers use Sepolia (ETH) and Shasta (TRON)",
+        "pathParameters": {
+          "hash": "Transaction hash (0x-prefixed for Ethereum, base58 for Tron)"
+        },
+        "queryParameters": {
+          "type": "AFRi_ERC20 | AFRi_TRC20 (required)"
+        },
+        "behaviorAndDataSources": {
+          "AFRi_ERC20": "Uses the shared Ethereum provider to fetch both the transaction and its receipt, enriches the response with normalized values (ETH, gwei), confirmation count, logs, and block timestamp fallback.",
+          "AFRi_TRC20": "Uses the configured TronWalletService to load the transaction and receipt, converts SUN to TRX, includes energy usage, and backfills timestamps from the block header when missing."
+        },
+        "response": {
+          "success": true,
+          "message": "Transaction fetched successfully",
+          "data": {
+            "hash": "0x...",
+            "blockchain": "AFRi_ERC20",
+            "from": "0x...",
+            "to": "0x...",
+            "value": "0.1234",
+            "fee": {
+              "maxFeePerGasGwei": "27.45",
+              "gasUsed": "21000"
+            },
+            "status": "confirmed",
+            "timestamp": 1718200000000,
+            "confirmations": 12,
+            "logs": [
+              {
+                "address": "0x...",
+                "topics": [
+                  "0xddf..."
+                ],
+                "data": "0x..."
+              }
+            ],
+            "explorerUrl": "https://.../tx/0x..."
+          }
+        },
+        "errorCases": [
+          "Returns 400 when hash or type are missing, or when the blockchain type is unsupported",
+          "Returns 404 if the transaction cannot be found on the specified blockchain",
+          "Returns 500 for unexpected provider or TronGrid failures, preserving the standard error envelope"
+        ]
+      }
+    ],
+    "exampleAuthenticatedRequest": {
+      "description": "Example curl request with authentication",
+      "command": "curl -H \"Authorization: Bearer <your-token>\" \"http://localhost:3000/api/africoin/wallet/token-balance?blockchain=AFRi_TRC20&address=TQz44WVMq7jyy8oJuiq9USDBKgzubP9DDJ\""
+    },
+    "errorResponseFormat": {
+      "success": false,
+      "message": "Error message",
+      "data": null
+    }
+  }
+}

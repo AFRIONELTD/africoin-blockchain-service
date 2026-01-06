@@ -7,6 +7,9 @@ const TronAfricoinService = require('../services/TronAfricoinService');
 const { sendResponse } = require('../utils/response');
 const { authenticateToken } = require('../middleware/auth');
 const { ethers } = require('ethers');
+const axios = require('axios');
+const logger = require('../utils/logger');
+const africoinTronAbi = require('../abi/tron/africoin.json').abi;
 
 // Protect all routes with JWT authentication
 router.use(authenticateToken);
@@ -130,6 +133,318 @@ router.get('/balance/:address', async (req, res) => {
     sendResponse(res, { success: true, message: 'Balance retrieved successfully', data: { balance: balance.toString() } });
   } catch (err) {
     sendResponse(res, { success: false, message: err.message, data: null, status: 400 });
+  }
+});
+
+// --- HELPERS FOR ETHEREUM: raw log summation and totalSupply ---
+async function getEthTotalFromLogsRaw(isMint) {
+  // returns BigInt in token base units (wei)
+  const config = require('../config/provider');
+  const contractAddress = process.env.CONTRACT_ADDRESS_ETH || config.ethereum?.contractAddress;
+  const apiKey = process.env.ETHERSCAN_API_KEY || 'YourApiKeyToken';
+  const rpcUrl = config.ethereum?.rpcUrl || '';
+  const isSepolia = /sepolia/i.test(rpcUrl);
+  const baseApi = 'https://api.etherscan.io/v2/api';
+  const chainId = isSepolia ? 11155111 : 1;
+
+  const transferTopic = ethers.id('Transfer(address,address,uint256)');
+  const zeroTopic = '0x0000000000000000000000000000000000000000000000000000000000000000';
+
+  const paramsObj = {
+    module: 'logs',
+    action: 'getLogs',
+    fromBlock: '0',
+    toBlock: 'latest',
+    address: contractAddress,
+    topic0: transferTopic,
+    apikey: apiKey,
+    chainid: String(chainId)
+  };
+
+  if (isMint) paramsObj.topic1 = zeroTopic; else paramsObj.topic2 = zeroTopic;
+
+  const params = new URLSearchParams(paramsObj);
+  const resp = await fetch(`${baseApi}?${params.toString()}`);
+  const data = await resp.json();
+
+  if (data.status !== '1' && !(data.message && String(data.message).toLowerCase().includes('no records found'))) {
+    throw new Error(data.result || 'Etherscan API error');
+  }
+
+  const logs = data.result || [];
+  let total = 0n;
+  for (const log of logs) {
+    try {
+      total += BigInt(log.data);
+    } catch (err) {
+      continue;
+    }
+  }
+  return total; // BigInt
+}
+
+async function getEthTotalSupplyRaw() {
+  const config = require('../config/provider');
+  const contractAddress = process.env.CONTRACT_ADDRESS_ETH || config.ethereum?.contractAddress;
+  if (!contractAddress) throw new Error('CONTRACT_ADDRESS_ETH not set');
+  const rpcUrl = config.ethereum?.rpcUrl;
+  if (!rpcUrl) throw new Error('Ethereum RPC URL not configured');
+
+  const provider = new ethers.JsonRpcProvider(rpcUrl);
+  const abi = ["function totalSupply() view returns (uint256)"];
+  const contract = new ethers.Contract(contractAddress, abi, provider);
+  const supply = await contract.totalSupply();
+  // ethers v6 returns BigInt-like (BigInt)
+  return BigInt(supply.toString());
+}
+
+// Get ETH total burned (balance of zero address) as BigInt (wei)
+async function getEthTotalBurnedRaw() {
+  const config = require('../config/provider');
+  const contractAddress = process.env.CONTRACT_ADDRESS_ETH || config.ethereum?.contractAddress;
+  if (!contractAddress) throw new Error('CONTRACT_ADDRESS_ETH not set');
+  const rpcUrl = config.ethereum?.rpcUrl;
+  if (!rpcUrl) throw new Error('Ethereum RPC URL not configured');
+
+  const provider = new ethers.JsonRpcProvider(rpcUrl);
+  const abi = ["function balanceOf(address) view returns (uint256)"];
+  const contract = new ethers.Contract(contractAddress, abi, provider);
+  const burned = await contract.balanceOf('0x0000000000000000000000000000000000000000');
+  return BigInt(burned.toString());
+}
+
+// Return formatted ETH totalSupply string (18 decimals)
+async function getEthTotalSupply() {
+  const raw = await getEthTotalSupplyRaw();
+  return ethers.formatUnits(raw, 18);
+}
+
+// Get TRON total burned (balanceOf zero address) as BigInt (sun for TRX-based tokens with 6 decimals)
+async function getTronTotalBurnedRaw(contractAddr) {
+  const tronWeb = TronWalletService.tronWeb;
+  if (!tronWeb) throw new Error('TronWeb not initialized');
+
+  logger.info('[DEBUG] getTronTotalBurnedRaw entry:', { contractAddr });
+
+  if (!contractAddr || !tronWeb.isAddress(contractAddr)) {
+    throw new Error(`Invalid TRON contract address: ${contractAddr}`);
+  }
+
+  const TRON_ZERO = 'T9yD9hzV2A8mMPuX58K6qG2H76pD1yA68v';
+
+  try {
+    const caller = (tronWeb.defaultAddress && tronWeb.defaultAddress.base58) ? tronWeb.defaultAddress.base58 : TRON_ZERO;
+    const callerHex = tronWeb.address.toHex(caller);
+    
+    logger.info('[DEBUG] getTronTotalBurnedRaw instantiating contract:', { contractAddr, caller, callerHex });
+    const contract = await tronWeb.contract(africoinTronAbi, contractAddr);
+    
+    // Some versions of tronweb prefer Hex for owner_address, others prefer Base58.
+    // Also try passing Hex for the address argument.
+    const tronZeroHex = tronWeb.address.toHex(TRON_ZERO);
+    logger.info('[DEBUG] getTronTotalBurnedRaw calling balanceOf:', { TRON_ZERO, tronZeroHex, caller, callerHex });
+
+    let balance;
+    try {
+      // Attempt 1: argument Base58, from Hex
+      if (contract.balanceOf) {
+        balance = await contract.balanceOf(TRON_ZERO).call({ from: callerHex });
+      } else {
+        balance = await contract.methods.balanceOf(TRON_ZERO).call({ from: callerHex });
+      }
+    } catch (e1) {
+      logger.info('[DEBUG] getTronTotalBurnedRaw attempt 1 failed, trying attempt 2 (Hex arg):', e1.message);
+      try {
+        // Attempt 2: argument Hex, from Hex
+        if (contract.balanceOf) {
+          balance = await contract.balanceOf(tronZeroHex).call({ from: callerHex });
+        } else {
+          balance = await contract.methods.balanceOf(tronZeroHex).call({ from: callerHex });
+        }
+      } catch (e2) {
+        logger.info('[DEBUG] getTronTotalBurnedRaw attempt 2 failed, trying attempt 3 (Base58 from):', e2.message);
+        // Attempt 3: argument Base58, from Base58
+        if (contract.balanceOf) {
+          balance = await contract.balanceOf(TRON_ZERO).call({ from: caller });
+        } else {
+          balance = await contract.methods.balanceOf(TRON_ZERO).call({ from: caller });
+        }
+      }
+    }
+
+    return BigInt(balance.toString());
+  } catch (err) {
+    logger.error('TRON balanceOf call failed finally:', { 
+      message: err?.message || err,
+      contractAddr,
+      caller: (tronWeb.defaultAddress && tronWeb.defaultAddress.base58) || 'none'
+    });
+    throw err;
+  }
+}
+
+// Return formatted TRON totalSupply string (6 decimals)
+async function getTronTotalSupplyFormatted(contractAddr) {
+  const tronWeb = TronWalletService.tronWeb;
+  if (!tronWeb) throw new Error('TronWeb not initialized');
+  if (!contractAddr || !tronWeb.isAddress(contractAddr)) {
+    throw new Error(`Invalid TRON contract address: ${contractAddr}`);
+  }
+
+  const TRON_ZERO = 'T9yD9hzV2A8mMPuX58K6qG2H76pD1yA68v';
+  const caller = (tronWeb.defaultAddress && tronWeb.defaultAddress.base58) ? tronWeb.defaultAddress.base58 : TRON_ZERO;
+  const callerHex = tronWeb.address.toHex(caller);
+
+  try {
+    const contract = await tronWeb.contract(africoinTronAbi, contractAddr);
+    
+    logger.info('[DEBUG] getTronTotalSupplyFormatted calling totalSupply:', { contractAddr, callerHex });
+
+    let supplyStr;
+    try {
+      if (contract.totalSupply) {
+        supplyStr = await contract.totalSupply().call({ from: callerHex });
+      } else {
+        supplyStr = await contract.methods.totalSupply().call({ from: callerHex });
+      }
+    } catch (e1) {
+      if (contract.totalSupply) {
+        supplyStr = await contract.totalSupply().call({ from: caller });
+      } else {
+        supplyStr = await contract.methods.totalSupply().call({ from: caller });
+      }
+    }
+
+    return ethers.formatUnits(BigInt(supplyStr.toString()), 6);
+  } catch (err) {
+    logger.error('TRON totalSupply call failed finally:', err?.message || err);
+    throw err;
+  }
+}
+
+// Normalize various shapes returned by tronWeb.getEventResult
+function normalizeTronEventResult(raw) {
+  // Ensure we always return an array of event objects.
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw;
+
+  const results = [];
+
+  // Recursively walk the object and collect any arrays of objects we find.
+  const walk = (node) => {
+    if (!node) return;
+    if (Array.isArray(node)) {
+      for (const el of node) {
+        if (el && typeof el === 'object') results.push(el);
+      }
+      return;
+    }
+    if (typeof node === 'object') {
+      for (const key of Object.keys(node)) {
+        const val = node[key];
+        if (Array.isArray(val)) {
+          for (const el of val) {
+            if (el && typeof el === 'object') results.push(el);
+          }
+        } else if (val && typeof val === 'object') {
+          walk(val);
+        }
+      }
+    }
+  };
+
+  walk(raw);
+
+  // If we found nothing but the raw has a single object-shaped event, return it as single-element array
+  if (results.length === 0 && typeof raw === 'object') {
+    // Some providers return {result: {...}} where result is an object event
+    if (raw.result && typeof raw.result === 'object' && !Array.isArray(raw.result)) return [raw.result];
+    if (raw.data && typeof raw.data === 'object' && !Array.isArray(raw.data)) return [raw.data];
+    // Fallback: return raw wrapped
+    return [raw];
+  }
+
+  return results;
+}
+
+// Get TRON total from logs (minted or burned)
+async function getTronTotalFromLogsRaw(isMint) {
+  const tronWeb = TronWalletService.tronWeb;
+  const contractAddr = process.env.CONTRACT_ADDRESS_TRON;
+  const TRON_ZERO = 'T9yD9hzV2A8mMPuX58K6qG2H76pD1yA68v';
+  const TRON_ZERO_HEX = '410000000000000000000000000000000000000000';
+
+  if (!contractAddr) throw new Error('CONTRACT_ADDRESS_TRON not set');
+
+  // Fetch Transfer events
+  const rawEvents = await tronWeb.getEventResult(contractAddr, { eventName: 'Transfer', size: 200 });
+  const events = normalizeTronEventResult(rawEvents);
+  
+  let total = 0n;
+  for (const e of events) {
+    const res = e.result || e;
+    const from = res.from || res.fromAddress;
+    const to = res.to || res.toAddress;
+    const value = res.value || res.amount;
+
+    if (isMint) {
+      if (from === TRON_ZERO || from === TRON_ZERO_HEX) {
+        total += BigInt(value || 0);
+      }
+    } else {
+      if (to === TRON_ZERO || to === TRON_ZERO_HEX) {
+        total += BigInt(value || 0);
+      }
+    }
+  }
+  return total;
+}
+
+// --- UPDATED ROUTES ---
+
+// Get total tokens minted
+router.get('/minted', async (req, res) => {
+  // Accept blockchain type from request body or query: { blockchain: 'AFRi_ERC20' } or ?blockchain=AFRi_TRC20
+  const blockchainParam = (req.body && req.body.blockchain) || req.query.blockchain;
+  const kind = String(blockchainParam || 'AFRi_ERC20').toUpperCase();
+
+  try {
+    if (kind === 'AFRI_ERC20') {
+      const totalMintedRaw = await getEthTotalFromLogsRaw(true);
+      const totalMinted = ethers.formatUnits(totalMintedRaw, 18);
+      return sendResponse(res, { success: true, message: 'Total minted (AFRI)', data: { blockchain: kind, totalMinted } });
+    } else if (kind === 'AFRI_TRC20') {
+      const totalMintedRaw = await getTronTotalFromLogsRaw(true);
+      const totalMinted = ethers.formatUnits(totalMintedRaw, 6);
+      return sendResponse(res, { success: true, message: 'Total minted (AFRI)', data: { blockchain: kind, totalMinted } });
+    } else {
+      return sendResponse(res, { success: false, message: 'Invalid blockchain. Use AFRi_ERC20 or AFRi_TRC20.', data: null, status: 400 });
+    }
+  } catch (err) {
+    sendResponse(res, { success: false, message: err.message, data: null, status: 500 });
+  }
+});
+
+// Get total tokens burned
+router.get('/burned', async (req, res) => {
+  // Accept blockchain type from request body or query: { blockchain: 'AFRi_ERC20' } or ?blockchain=AFRi_TRC20
+  const blockchainParam = (req.body && req.body.blockchain) || req.query.blockchain;
+  const kind = String(blockchainParam || 'AFRi_ERC20').toUpperCase();
+
+  try {
+    if (kind === 'AFRI_ERC20') {
+      const totalBurnedRaw = await getEthTotalFromLogsRaw(false);
+      const totalBurned = ethers.formatUnits(totalBurnedRaw, 18);
+      return sendResponse(res, { success: true, message: 'Total burned (AFRI)', data: { blockchain: kind, totalBurned } });
+    } else if (kind === 'AFRI_TRC20') {
+      const totalBurnedRaw = await getTronTotalFromLogsRaw(false);
+      const totalBurned = ethers.formatUnits(totalBurnedRaw, 6);
+      return sendResponse(res, { success: true, message: 'Total burned (AFRI)', data: { blockchain: kind, totalBurned } });
+    } else {
+      return sendResponse(res, { success: false, message: 'Invalid blockchain. Use AFRi_ERC20 or AFRi_TRC20.', data: null, status: 400 });
+    }
+  } catch (err) {
+    sendResponse(res, { success: false, message: err.message, data: null, status: 500 });
   }
 });
 
@@ -457,17 +772,30 @@ router.get('/gas-fees', async (req, res) => {
       let low, medium, high;
       try {
         const apiKey = process.env.ETHERSCAN_API_KEY || 'YourApiKeyToken';
-        const url = `https://api.etherscan.io/api?module=gastracker&action=gasoracle&apikey=${apiKey}`;
-        const resp = await fetch(url);
-        const data = await resp.json();
+        const config = require('../config/provider');
+        const rpcUrl = (config && config.ethereum && config.ethereum.rpcUrl) || '';
+        const isSepolia = /sepolia/i.test(rpcUrl) || (process.env.NODE_ENV || '').toLowerCase() === 'test';
+        const chainId = isSepolia ? 11155111 : 1; // Sepolia chain id for Etherscan v2
+        const url = `https://api.etherscan.io/v2/api?chainid=${chainId}&module=gastracker&action=gasoracle&apikey=${apiKey}`;
+
+        logger.info('Fetching Ethereum gas fees from:', url);
+
+        const response = await axios.get(url, {
+          timeout: 10000,
+          headers: { 'User-Agent': 'Mozilla/5.0' }
+        });
+
+        logger.info('Etherscan API response:', JSON.stringify(response.data));
+
+        const data = response.data;
         if (!data || data.status !== '1') throw new Error(data?.message || 'Etherscan error');
         const r = data.result;
         const baseFee = gweiToEth(parseFloat(r.suggestBaseFee));
         low = baseFee + gweiToEth(parseFloat(r.SafeGasPrice));
         medium = baseFee + gweiToEth(parseFloat(r.ProposeGasPrice));
         high = baseFee + gweiToEth(parseFloat(r.FastGasPrice));
-      } catch (_) {
-        // Fallback static values in ETH
+      } catch (err) {
+        logger.warn('Failed to fetch Etherscan gasoracle v2, using fallback:', err?.message || err);
         const baseFee = gweiToEth(30);
         low = baseFee + gweiToEth(35);
         medium = baseFee + gweiToEth(40);
