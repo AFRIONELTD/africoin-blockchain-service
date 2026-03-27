@@ -162,6 +162,8 @@ async function metaTransferAuto(privateKey, to, amount, bufferBps = 1000) { // 1
     throw new Error('Ethereum contract service is not initialized (missing COMPANY_ETH_PRIVATE_KEY)');
   }
 
+  logger.info(`Relayer address: ${wallet.address}`);
+
   // Gather chain/domain info
   const network = await provider.getNetwork();
 

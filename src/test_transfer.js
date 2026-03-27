@@ -9,7 +9,7 @@ async function test() {
     try {
         const response = await axios.post('http://localhost:3000/api/africoin/transfer', {
             privateKey: PK,
-            amount: 0.5,
+            amount: 0.1,
             blockchain: "AFRi_ERC20",
             to: "0xBb8462A4d71341D61758322764290d2322a34117"
         }, {
