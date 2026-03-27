@@ -39,7 +39,7 @@ function safeEthAddressFromKey(key, label) {
   if (!key) return null;
   try {
     const addr = new ethers.Wallet(key).address;
-    console.log(`${label} address:`, key);
+   // console.log(`${label} address:`, addr);
     return addr;
   } catch (err) {
     logger.warn(`${label} address derivation failed: ${err.message}`);
