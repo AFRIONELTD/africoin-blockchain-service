@@ -235,19 +235,23 @@ router.post('/transfer', async (req, res) => {
   }
   try {
     const normalizedChain = String(blockchain).toUpperCase();
+    const envKey = String(privateKey).trim();
+    const resolvedPrivateKey = !envKey.startsWith('0x')
+      ? (process.env[envKey] || process.env[envKey.toUpperCase()] || privateKey)
+      : privateKey;
     let txHash;
     let explorerUrl;
 
     if (normalizedChain === 'AFRI_ERC20') {
       if (!to.startsWith('0x')) throw new Error('AFRi_ERC20 transfer requires a 0x... address');
       // Perform meta-transfer automatically using provided privateKey
-      const tx = await africoinService.metaTransferAuto(privateKey, to, amount);
+      const tx = await africoinService.metaTransferAuto(resolvedPrivateKey, to, amount);
       txHash = tx.hash ?? tx?.transactionHash ?? tx;
       explorerUrl = process.env.NODE_ENV === 'test' ? `https://sepolia.etherscan.io/tx/${txHash}` : `https://etherscan.io/tx/${txHash}`;
     } else if (normalizedChain === 'AFRI_TRC20') {
       if (!to.startsWith('T')) throw new Error('AFRi_TRC20 transfer requires a T... address');
       // Perform meta-transfer automatically (user signs, company pays gas)
-      const tx = await TronAfricoinService.metaTransferAuto(privateKey, to, amount);
+      const tx = await TronAfricoinService.metaTransferAuto(resolvedPrivateKey, to, amount);
       txHash = tx;
       explorerUrl = process.env.NODE_ENV === 'test' ? `https://shasta.tronscan.org/#/transaction/${txHash}` : `https://tronscan.org/#/transaction/${txHash}`;
     } else {
