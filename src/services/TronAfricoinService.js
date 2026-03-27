@@ -33,7 +33,7 @@ function getNextLocalTronNonce(address) {
 }
 
 const tronNode = process.env.TRON_RPC_URL || config.blockchain.tronRpcUrl;
-const rawPrivateKey = process.env.COMPANY_TRON_PRIVATE_KEY; // optional default signer for TRON
+const rawPrivateKey = process.env.ADMIN_TRON_PRIVATE_KEY || process.env.COMPANY_TRON_PRIVATE_KEY; // prioritize admin over company key
 // Remove 0x prefix for Tron private key if present
 const privateKey = rawPrivateKey && rawPrivateKey.startsWith('0x') ? rawPrivateKey.slice(2) : rawPrivateKey;
 const contractAddress = process.env.CONTRACT_ADDRESS_TRON;
@@ -505,7 +505,7 @@ async function metaTransferAuto(privateKey, to, amount, bufferBps = 1000) { // 1
 
     // For meta-transfers: user signs the message, company/relayer pays for gas
     const userPrivateKey = cleanPrivateKey; // User's key for signing the message
-    const companyPrivateKey = process.env.COMPANY_TRON_PRIVATE_KEY;
+    const companyPrivateKey = process.env.ADMIN_TRON_PRIVATE_KEY || process.env.COMPANY_TRON_PRIVATE_KEY;
 
     // Use company key for sending transaction (gas payment), fallback to user key
     const tw = new TronWeb({

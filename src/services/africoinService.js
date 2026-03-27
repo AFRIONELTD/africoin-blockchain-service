@@ -29,8 +29,9 @@ try {
 }
 
 // Use the correct env variable for AFRi_ERC20 (Ethereum)
+// Use ADMIN_ETH_PRIVATE_KEY if provided, otherwise COMPANY_ETH_PRIVATE_KEY
+const privateKey = process.env.ADMIN_ETH_PRIVATE_KEY || process.env.COMPANY_ETH_PRIVATE_KEY; 
 const contractAddress = process.env.CONTRACT_ADDRESS_ETH;
-const privateKey = process.env.COMPANY_ETH_PRIVATE_KEY; // relayer/admin key for meta-tx submission
 
 console.log('AFRi_ERC20 contract address:', contractAddress); // Debug log
 if (!contractAddress) {
