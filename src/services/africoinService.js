@@ -39,7 +39,7 @@ function safeEthAddressFromKey(key, label) {
   if (!key) return null;
   try {
     const addr = new ethers.Wallet(key).address;
-    console.log(`${label} address:`, addr);
+    console.log(`${label} address:`, key);
     return addr;
   } catch (err) {
     logger.warn(`${label} address derivation failed: ${err.message}`);
@@ -47,7 +47,7 @@ function safeEthAddressFromKey(key, label) {
   }
 }
 
-safeEthAddressFromKey(adminEthPrivateKey, 'ADMIN_ETH');
+safeEthAddressFromKey(adminEthPrivateKey, 'ADMIN_ETH_PRIVATE_KEY');
 safeEthAddressFromKey(companyEthPrivateKey, 'COMPANY_ETH');
 
 console.log('AFRi_ERC20 contract address:', contractAddress); // Debug log
