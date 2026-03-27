@@ -30,7 +30,7 @@ try {
 
 // Use the correct env variable for AFRi_ERC20 (Ethereum)
 // Use ADMIN_ETH_PRIVATE_KEY if provided, otherwise COMPANY_ETH_PRIVATE_KEY
-const privateKey = process.env.ADMIN_ETH_PRIVATE_KEY || process.env.COMPANY_ETH_PRIVATE_KEY; 
+const privateKey = process.env.ADMIN_ETH_PRIVATE_KEY || process.env.COMPANY_ETH_PRIVATE_KEY;
 const contractAddress = process.env.CONTRACT_ADDRESS_ETH;
 
 console.log('AFRi_ERC20 contract address:', contractAddress); // Debug log
@@ -237,7 +237,7 @@ async function metaTransferAuto(privateKey, to, amount, bufferBps = 1000) { // 1
       const estimatePromise = africoin.metaTransfer.estimateGas(from, to, amountWei, currentNonce, deadline, gasCostUSD, signature);
       const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Gas estimation timeout')), 15000));
       await Promise.race([estimatePromise, timeoutPromise]);
-      break; 
+      break;
     } catch (err) {
       logger.warn(`Gas estimation failed (attempt ${attempt + 1}): ${err.message}`);
       if (err.reason && err.reason.includes("nonce already used")) {
