@@ -65,6 +65,7 @@ function getNextLocalEthNonce(address) {
 async function mint(privateKey, to, amount) {
   const amountWei = ethers.parseUnits(amount.toString(), 18);
   const wallet = new ethers.Wallet(privateKey, provider);
+  logger.info(`Mint signer address: ${wallet.address}`);
   const africoinWithSigner = new ethers.Contract(contractAddress, AFRICOIN_ABI, wallet);
   return africoinWithSigner.mint(to, amountWei);
 }
@@ -72,6 +73,7 @@ async function mint(privateKey, to, amount) {
 async function burn(privateKey, from, amount) {
   const amountWei = ethers.parseUnits(amount.toString(), 18);
   const wallet = new ethers.Wallet(privateKey, provider);
+  logger.info(`Burn signer address: ${wallet.address}`);
   const africoinWithSigner = new ethers.Contract(contractAddress, AFRICOIN_ABI, wallet);
   return africoinWithSigner.burnFrom(from, amountWei);
 }
