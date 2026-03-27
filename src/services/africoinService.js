@@ -229,7 +229,7 @@ async function metaTransferAuto(privateKey, to, amount, bufferBps = 1000) { // 1
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       logger.info(`Estimating gas for metaTransfer (attempt ${attempt + 1})...`);
-      const estimatePromise = africoin.estimateGas.metaTransfer(from, to, amountWei, currentNonce, deadline, gasCostUSD, signature);
+      const estimatePromise = africoin.metaTransfer.estimateGas(from, to, amountWei, currentNonce, deadline, gasCostUSD, signature);
       const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Gas estimation timeout')), 15000));
       await Promise.race([estimatePromise, timeoutPromise]);
       break; 
@@ -253,7 +253,7 @@ async function metaTransferAuto(privateKey, to, amount, bufferBps = 1000) { // 1
   let finalSignature = signature;
   let finalGasCostUSD = gasCostUSD;
   try {
-    const estGas = await africoin.estimateGas.metaTransfer(from, to, amountWei, currentNonce, deadline, finalGasCostUSD, finalSignature);
+    const estGas = await africoin.metaTransfer.estimateGas(from, to, amountWei, currentNonce, deadline, finalGasCostUSD, finalSignature);
     const ethCostWei2 = estGas * maxFeePerGas;
     let gasCostUSD2 = Number(ethCostWei2) / 1e18 * ethUsd * (1 + bufferBps / 10000);
     const gasCostUSDAdj = ethers.parseUnits(gasCostUSD2.toFixed(6), 18);
