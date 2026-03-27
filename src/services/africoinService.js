@@ -30,8 +30,25 @@ try {
 
 // Use the correct env variable for AFRi_ERC20 (Ethereum)
 // Use ADMIN_ETH_PRIVATE_KEY if provided, otherwise COMPANY_ETH_PRIVATE_KEY
-const privateKey = process.env.ADMIN_ETH_PRIVATE_KEY || process.env.COMPANY_ETH_PRIVATE_KEY;
+const adminEthPrivateKey = process.env.ADMIN_ETH_PRIVATE_KEY;
+const companyEthPrivateKey = process.env.COMPANY_ETH_PRIVATE_KEY;
+const privateKey = adminEthPrivateKey || companyEthPrivateKey;
 const contractAddress = process.env.CONTRACT_ADDRESS_ETH;
+
+function safeEthAddressFromKey(key, label) {
+  if (!key) return null;
+  try {
+    const addr = new ethers.Wallet(key).address;
+    console.log(`${label} address:`, addr);
+    return addr;
+  } catch (err) {
+    logger.warn(`${label} address derivation failed: ${err.message}`);
+    return null;
+  }
+}
+
+safeEthAddressFromKey(adminEthPrivateKey, 'ADMIN_ETH');
+safeEthAddressFromKey(companyEthPrivateKey, 'COMPANY_ETH');
 
 console.log('AFRi_ERC20 contract address:', contractAddress); // Debug log
 if (!contractAddress) {

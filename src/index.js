@@ -6,6 +6,10 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Initialize services at startup to log configured key addresses
+require('./services/africoinService');
+require('./services/TronAfricoinService');
+
 const africoinRoutes = require('./routes/africoin');
 app.use('/api/africoin', africoinRoutes);
 

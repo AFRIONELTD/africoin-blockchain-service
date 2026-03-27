@@ -33,10 +33,28 @@ function getNextLocalTronNonce(address) {
 }
 
 const tronNode = process.env.TRON_RPC_URL || config.blockchain.tronRpcUrl;
-const rawPrivateKey = process.env.ADMIN_TRON_PRIVATE_KEY || process.env.COMPANY_TRON_PRIVATE_KEY; // prioritize admin over company key
+const adminTronPrivateKey = process.env.ADMIN_TRON_PRIVATE_KEY;
+const companyTronPrivateKey = process.env.COMPANY_TRON_PRIVATE_KEY;
+const rawPrivateKey = adminTronPrivateKey || companyTronPrivateKey; // prioritize admin over company key
 // Remove 0x prefix for Tron private key if present
 const privateKey = rawPrivateKey && rawPrivateKey.startsWith('0x') ? rawPrivateKey.slice(2) : rawPrivateKey;
 const contractAddress = process.env.CONTRACT_ADDRESS_TRON;
+
+function safeTronAddressFromKey(key, label) {
+  if (!key) return null;
+  const cleanKey = key.startsWith('0x') ? key.slice(2) : key;
+  try {
+    const addr = TronWeb.address.fromPrivateKey(cleanKey);
+    console.log(`${label} address:`, addr);
+    return addr;
+  } catch (err) {
+    console.warn(`${label} address derivation failed: ${err.message}`);
+    return null;
+  }
+}
+
+safeTronAddressFromKey(adminTronPrivateKey, 'ADMIN_TRON');
+safeTronAddressFromKey(companyTronPrivateKey, 'COMPANY_TRON');
 
 let tronWeb;
 try {
