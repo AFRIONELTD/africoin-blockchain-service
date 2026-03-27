@@ -159,28 +159,28 @@ async function mint(privateKey, to, amount) {
     if (!amount || isNaN(amount)) {
       throw new Error('Invalid amount provided');
     }
-    
+
     // Clean private key
     const cleanPrivateKey = privateKey.startsWith('0x') ? privateKey.slice(2) : privateKey;
-    
+
     // Validate private key length
     if (cleanPrivateKey.length !== 64) {
       throw new Error('Invalid private key length. Expected 64 hex characters.');
     }
-    
+
     const tronNode = process.env.TRON_RPC_URL || config.blockchain.tronRpcUrl;
-    const tw = new TronWeb({ 
-      fullHost: tronNode, 
-      privateKey: cleanPrivateKey 
+    const tw = new TronWeb({
+      fullHost: tronNode,
+      privateKey: cleanPrivateKey
     });
-    
+
     // Validate recipient address
     if (!tw.isAddress(to)) {
       throw new Error('Invalid Tron address format for recipient');
     }
-    
+
     const contract = await tw.contract(africoinAbi, contractAddress);
-    
+
     const toHex = TronWeb.address.toHex(to);
     console.log('Mint - To hex:', toHex);
 
@@ -189,7 +189,7 @@ async function mint(privateKey, to, amount) {
       callValue: 0,
       shouldPollResponse: false
     });
-    
+
     const txId = extractTronTxId(sendRes);
     return txId || sendRes;
   } catch (err) {
@@ -210,28 +210,28 @@ async function burn(privateKey, from, amount) {
     if (!amount || isNaN(amount)) {
       throw new Error('Invalid amount provided');
     }
-    
+
     // Clean private key
     const cleanPrivateKey = privateKey.startsWith('0x') ? privateKey.slice(2) : privateKey;
-    
+
     // Validate private key length
     if (cleanPrivateKey.length !== 64) {
       throw new Error('Invalid private key length. Expected 64 hex characters.');
     }
-    
+
     const tronNode = process.env.TRON_RPC_URL || config.blockchain.tronRpcUrl;
-    const tw = new TronWeb({ 
-      fullHost: tronNode, 
-      privateKey: cleanPrivateKey 
+    const tw = new TronWeb({
+      fullHost: tronNode,
+      privateKey: cleanPrivateKey
     });
-    
+
     // Validate from address
     if (!tw.isAddress(from)) {
       throw new Error('Invalid Tron address format for from');
     }
-    
+
     const contract = await tw.contract(africoinAbi, contractAddress);
-    
+
     const fromHex = TronWeb.address.toHex(from);
     console.log('Burn - From hex:', fromHex);
 
@@ -240,7 +240,7 @@ async function burn(privateKey, from, amount) {
       callValue: 0,
       shouldPollResponse: false
     });
-    
+
     const txId = extractTronTxId(sendRes);
     return txId || sendRes;
   } catch (err) {
@@ -723,7 +723,7 @@ async function metaTransferAuto(privateKey, to, amount, bufferBps = 1000) { // 1
 
     // Convert 41.. addresses to 0x.. for EIP-712 typed-data signing
     const from0x = /^41/i.test(fromHex) ? ('0x' + fromHex.slice(2)) : fromHex;
-    const to0x   = /^41/i.test(toHex)   ? ('0x' + toHex.slice(2))   : toHex;
+    const to0x = /^41/i.test(toHex) ? ('0x' + toHex.slice(2)) : toHex;
 
     const value = {
       from: from0x,
