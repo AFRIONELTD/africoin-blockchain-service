@@ -38,14 +38,19 @@ const rawPrivateKey = process.env.COMPANY_TRON_PRIVATE_KEY; // optional default 
 const privateKey = rawPrivateKey && rawPrivateKey.startsWith('0x') ? rawPrivateKey.slice(2) : rawPrivateKey;
 const contractAddress = process.env.CONTRACT_ADDRESS_TRON;
 
-if (!contractAddress) {
-  throw new Error('Missing CONTRACT_ADDRESS_TRON in environment. Please set it in your .env file.');
+let tronWeb;
+try {
+  if (!contractAddress) {
+    console.warn('CONTRACT_ADDRESS_TRON is missing. Tron services will NOT work.');
+  } else {
+    tronWeb = new TronWeb({
+      fullHost: tronNode,
+      privateKey
+    });
+  }
+} catch (err) {
+  console.error(`Failed to initialize Tron service: ${err.message}`);
 }
-
-const tronWeb = new TronWeb({
-  fullHost: tronNode,
-  privateKey
-});
 
 // Extract a transaction ID from various TronWeb send() response shapes
 function extractTronTxId(res) {

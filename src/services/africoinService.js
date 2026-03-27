@@ -1,5 +1,7 @@
 const { ethers } = require('ethers');
 const config = require('../config/provider');
+const priceOracle = require('./PriceOracle');
+const logger = require('../utils/logger');
 require('dotenv').config();
 
 const provider = config.ethereum.provider;
@@ -35,8 +37,18 @@ if (!contractAddress) {
   throw new Error('Missing CONTRACT_ADDRESS_ETH for AFRi_ERC20 in environment. Please set it in your .env file.');
 }
 
-const wallet = new ethers.Wallet(privateKey, provider);
-const africoin = new ethers.Contract(contractAddress, AFRICOIN_ABI, wallet);
+let wallet;
+let africoin;
+try {
+  if (!privateKey) {
+    logger.warn('COMPANY_ETH_PRIVATE_KEY is missing. Meta-transfers will NOT work.');
+  } else {
+    wallet = new ethers.Wallet(privateKey, provider);
+    africoin = new ethers.Contract(contractAddress, AFRICOIN_ABI, wallet);
+  }
+} catch (err) {
+  logger.error(`Failed to initialize Ethereum contract/wallet: ${err.message}`);
+}
 
 // Local per-address nonce cache to avoid reusing nonces across rapid calls
 const ethNonceCache = new Map(); // Map<string, bigint>
@@ -145,6 +157,10 @@ async function metaTransferAuto(privateKey, to, amount, bufferBps = 1000) { // 1
   const userWallet = new ethers.Wallet(privateKey, provider);
   const from = await userWallet.getAddress();
 
+  if (!africoin) {
+    throw new Error('Ethereum contract service is not initialized (missing COMPANY_ETH_PRIVATE_KEY)');
+  }
+
   // Gather chain/domain info
   const network = await provider.getNetwork();
 
@@ -164,10 +180,9 @@ async function metaTransferAuto(privateKey, to, amount, bufferBps = 1000) { // 1
   const assumedGasLimit = 180000n; // metaTransfer cost rough guess
   const ethCostWei = assumedGasLimit * maxFeePerGas;
 
-  // Convert ETH -> USD using env var or default
-  const ethUsdStr = process.env.ETH_USD_PRICE || '3000';
-  const ethUsd = Number(ethUsdStr);
-  if (!ethUsd || ethUsd <= 0) throw new Error('Invalid ETH_USD_PRICE');
+  // Convert ETH -> USD using programmatic price oracle
+  const ethUsd = await priceOracle.getEthPrice();
+  if (!ethUsd || ethUsd <= 0) throw new Error('Unable to fetch ETH price from oracle');
 
   // Convert wei to ETH (1e18) then to USD
   const ethCost = Number(ethCostWei) / 1e18;
@@ -210,12 +225,16 @@ async function metaTransferAuto(privateKey, to, amount, bufferBps = 1000) { // 1
 
   // No pre-flight chain nonce: we rely on local cache to avoid races and contract uses (from, nonce) uniqueness
 
-  const maxRetries = 5; // Prevent infinite loop
+  const maxRetries = 5;
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
-      await africoin.estimateGas.metaTransfer(from, to, amountWei, currentNonce, deadline, gasCostUSD, signature);
-      break; // Success, proceed
+      logger.info(`Estimating gas for metaTransfer (attempt ${attempt + 1})...`);
+      const estimatePromise = africoin.estimateGas.metaTransfer(from, to, amountWei, currentNonce, deadline, gasCostUSD, signature);
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Gas estimation timeout')), 15000));
+      await Promise.race([estimatePromise, timeoutPromise]);
+      break; 
     } catch (err) {
+      logger.warn(`Gas estimation failed (attempt ${attempt + 1}): ${err.message}`);
       if (err.reason && err.reason.includes("nonce already used")) {
         // Pick a higher local nonce and re-sign
         const next = getNextLocalEthNonce(from);
