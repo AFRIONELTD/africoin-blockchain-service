@@ -29,10 +29,10 @@ try {
 }
 
 // Use the correct env variable for AFRi_ERC20 (Ethereum)
-// Use ADMIN_ETH_PRIVATE_KEY if provided, otherwise COMPANY_ETH_PRIVATE_KEY
+// Force relayer to use ADMIN_ETH_PRIVATE_KEY only
 const adminEthPrivateKey = process.env.ADMIN_ETH_PRIVATE_KEY;
 const companyEthPrivateKey = process.env.COMPANY_ETH_PRIVATE_KEY;
-const privateKey = adminEthPrivateKey || companyEthPrivateKey;
+const privateKey = adminEthPrivateKey;
 const contractAddress = process.env.CONTRACT_ADDRESS_ETH;
 
 function safeEthAddressFromKey(key, label) {
@@ -59,7 +59,7 @@ let wallet;
 let africoin;
 try {
   if (!privateKey) {
-    logger.warn('COMPANY_ETH_PRIVATE_KEY is missing. Meta-transfers will NOT work.');
+    throw new Error('ADMIN_ETH_PRIVATE_KEY is missing. Meta-transfers will NOT work.');
   } else {
     wallet = new ethers.Wallet(privateKey, provider);
     africoin = new ethers.Contract(contractAddress, AFRICOIN_ABI, wallet);
