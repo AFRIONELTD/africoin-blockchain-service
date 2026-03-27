@@ -8,6 +8,7 @@ const { sendResponse } = require('../utils/response');
 const { authenticateToken } = require('../middleware/auth');
 const { ethers } = require('ethers');
 const axios = require('axios');
+const config = require('../config/provider');
 const logger = require('../utils/logger');
 const priceOracle = require('../services/PriceOracle');
 
