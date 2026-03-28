@@ -379,6 +379,23 @@ async function getGasFee(type) {
   return fee.toString();
 }
 
+// Retry helper with exponential backoff, respects 429 rate-limit responses
+async function retryWithBackoff(fn, { maxRetries = 4, baseDelayMs = 1000 } = {}) {
+  let attempt = 0;
+  while (true) {
+    try {
+      return await fn();
+    } catch (err) {
+      const is429 = err.message && (err.message.includes('429') || err.message.toLowerCase().includes('rate limit') || err.message.toLowerCase().includes('too many requests'));
+      attempt++;
+      if (!is429 || attempt > maxRetries) throw err;
+      const delay = baseDelayMs * Math.pow(2, attempt - 1); // 1s, 2s, 4s, 8s
+      console.log(`⚠️ Rate-limited (429), retrying in ${delay}ms (attempt ${attempt}/${maxRetries})...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+}
+
 // Helper function to send TRX for account activation
 async function sendActivationTrx(toAddress, trxAmount) {
   try {
@@ -407,8 +424,8 @@ async function sendActivationTrx(toAddress, trxAmount) {
     const companyAddress = TronWeb.address.fromPrivateKey(companyPrivateKey);
     console.log(`Company address: ${companyAddress}`);
 
-    // Check company wallet balance
-    const companyAccount = await tw.trx.getAccount(companyAddress);
+    // Check company wallet balance (with retry for rate limits)
+    const companyAccount = await retryWithBackoff(() => tw.trx.getAccount(companyAddress));
     const companyBalance = (companyAccount.balance || 0) / 1000000; // Convert to TRX
     console.log(`Company wallet balance: ${companyBalance} TRX`);
 
@@ -419,8 +436,8 @@ async function sendActivationTrx(toAddress, trxAmount) {
     // Convert TRX to SUN
     const amountInSun = Math.floor(trxAmount * 1000000);
 
-    // Send TRX transaction
-    const sendResult = await tw.trx.sendTransaction(toAddress, amountInSun);
+    // Send TRX transaction (with retry for rate limits)
+    const sendResult = await retryWithBackoff(() => tw.trx.sendTransaction(toAddress, amountInSun));
 
     const txId = extractTronTxId(sendResult);
     return txId || sendResult;
