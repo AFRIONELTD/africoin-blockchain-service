@@ -709,8 +709,8 @@ async function metaTransferAuto(privateKey, to, amount, bufferBps = 1000) { // 1
         if (/^\d+$/.test(trimmed)) return Number(trimmed);
         const lower = trimmed.toLowerCase();
         if (lower === 'shasta' || lower === 'testnet') return 2494104990;
-        // Do NOT guess mainnet number; require explicit numeric value for safety
-        throw new Error(`Invalid TRON_CHAIN_ID value: ${env}. Use a numeric chain id (e.g., 2494104990 for Shasta).`);
+        if (lower === 'mainnet') return 728126428;
+        throw new Error(`Invalid TRON_CHAIN_ID value: ${env}. Use a numeric chain id (e.g., 728126428 for mainnet, 2494104990 for Shasta).`);
       }
       if ((tronNode || '').toLowerCase().includes('shasta')) return 2494104990; // Shasta
       if ((tronNode || '').toLowerCase().includes('trongrid.io')) {
