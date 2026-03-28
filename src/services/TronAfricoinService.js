@@ -21,6 +21,28 @@ const config = require('../config/provider');
 require('dotenv').config();
 const { ethers } = require('ethers');
 
+// TRX/USD price cache — refreshed every 60 seconds from Binance, falls back to env
+let _trxUsdCache = { price: null, fetchedAt: 0 };
+async function getTrxUsdPrice() {
+  const now = Date.now();
+  if (_trxUsdCache.price && now - _trxUsdCache.fetchedAt < 60_000) {
+    return _trxUsdCache.price;
+  }
+  try {
+    const res = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=TRXUSDT');
+    if (!res.ok) throw new Error(`Binance API returned ${res.status}`);
+    const data = await res.json();
+    const price = Number(data.price);
+    if (!price || price <= 0) throw new Error('Invalid price from Binance');
+    _trxUsdCache = { price, fetchedAt: now };
+    return price;
+  } catch (err) {
+    const fallback = Number(process.env.TRX_USD_PRICE || '0.10');
+    console.warn(`⚠️ TRX price fetch failed (${err.message}), using fallback: $${fallback}`);
+    return fallback;
+  }
+}
+
 // Local per-address nonce cache to avoid reusing nonces
 const tronNonceCache = new Map(); // Map<string, bigint>
 function getNextLocalTronNonce(address) {
@@ -549,8 +571,6 @@ async function metaTransferAuto(privateKey, to, amount, bufferBps = 1000) { // 1
     });
 
     const from = TronWeb.address.fromPrivateKey(cleanPrivateKey);
-    console.log('User address (from):', from);
-    console.log('Recipient address (to):', to);
 
     if (!tw.isAddress(to)) {
       throw new Error('Invalid Tron address format for recipient');
@@ -559,8 +579,6 @@ async function metaTransferAuto(privateKey, to, amount, bufferBps = 1000) { // 1
     // Convert addresses to hex format for contract calls (Tron contracts expect hex addresses)
     const fromHex = TronWeb.address.toHex(from);
     const toHex = TronWeb.address.toHex(to);
-    console.log('From address (hex):', fromHex);
-    console.log('To address (hex):', toHex);
 
     // Check if user account exists and has sufficient balance
     let accountExists = false;
@@ -573,9 +591,6 @@ async function metaTransferAuto(privateKey, to, amount, bufferBps = 1000) { // 1
       if (accountExists && accountInfo.balance) {
         // Balance is in SUN (1 TRX = 1,000,000 SUN)
         accountBalance = accountInfo.balance / 1000000; // Convert to TRX
-        console.log(`User account exists with balance: ${accountBalance} TRX`);
-      } else {
-        console.log('User account does not exist');
       }
     } catch (err) {
       console.log('Error checking account existence/balance:', err.message);
@@ -619,7 +634,7 @@ async function metaTransferAuto(privateKey, to, amount, bufferBps = 1000) { // 1
       if (toAccountExists && toAccountInfo.balance) {
         toAccountBalance = toAccountInfo.balance / 1000000; // Convert to TRX
       }
-      console.log(`Recipient account exists: ${toAccountExists}, balance: ${toAccountBalance} TRX`);
+      console.log(`Recipient account exists: ${toAccountExists}`);
     } catch (err) {
       console.log('⚠️ Error checking recipient account:', err.message);
     }
@@ -658,17 +673,12 @@ async function metaTransferAuto(privateKey, to, amount, bufferBps = 1000) { // 1
     // Determine nonce via local cache to ensure monotonic uniqueness
     // Using ms timestamp ensures strict growth and avoids re-use across rapid calls or multi-instance
     let nonceBig = getNextLocalTronNonce(from);
-    console.log(`🧮 Local nonce chosen for ${from}: ${nonceBig}`);
     const nonce = Number(nonceBig);
 
     const deadline = Math.floor(Date.now() / 1000) + 5 * 60; // 5 minutes
-    console.log(`⏰ Current time: ${Math.floor(Date.now() / 1000)}`);
-    console.log(`⏰ Deadline: ${deadline} (in ${deadline - Math.floor(Date.now() / 1000)} seconds)`);
 
-    // Estimate gas cost in USD (TRX = ~$0.10, AFRi = $1)
-    const trxUsdStr = process.env.TRX_USD_PRICE || '0.10';
-    const trxUsd = Number(trxUsdStr);
-    if (!trxUsd || trxUsd <= 0) throw new Error('Invalid TRX_USD_PRICE');
+    // Estimate gas cost in USD using live TRX/USD price
+    const trxUsd = await getTrxUsdPrice();
 
     // Conservative gas limit for meta transfer (similar to ETH)
     const assumedGasLimit = 1000000; // TRX units
@@ -756,15 +766,11 @@ async function metaTransferAuto(privateKey, to, amount, bufferBps = 1000) { // 1
     const userWallet = new Wallet('0x' + userPrivateKey);
     let finalSignature = await userWallet.signTypedData(domain, types, value);
     if (!finalSignature.startsWith('0x')) finalSignature = '0x' + finalSignature;
-    console.log(`🔐 EIP-712 signature (${finalSignature.length} chars): ${finalSignature.substring(0, 20)}...`);
-
     // Accept 0x-prefixed (132) or raw (130); normalize to 0x-prefixed 132
     if (finalSignature.length !== 132 && finalSignature.length !== 130) {
       throw new Error(`Invalid signature length: ${finalSignature.length}, expected 130 or 132`);
     }
     if (finalSignature.length === 130) finalSignature = '0x' + finalSignature;
-
-    console.log(`🔐 Final signature (${finalSignature.length} chars): ${finalSignature.substring(0, 20)}...`);
 
     const contract = await tw.contract(africoinAbi, contractAddress);
 
@@ -773,9 +779,6 @@ async function metaTransferAuto(privateKey, to, amount, bufferBps = 1000) { // 1
       throw new Error('Contract does not have metaTransfer method. Please check contract ABI and address.');
     }
 
-    console.log('✅ Contract has metaTransfer method, proceeding...');
-    console.log(`📍 Contract address: ${contractAddress}`);
-    console.log(`🌐 Tron node: ${tronNode}`);
 
     // Handle nonce conflicts with retry
     const maxRetries = 5;
@@ -802,18 +805,7 @@ async function metaTransferAuto(privateKey, to, amount, bufferBps = 1000) { // 1
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
-        console.log(`🔄 Meta-transfer attempt ${attempt + 1}/${maxRetries}`);
-        console.log('📊 Parameters:');
-        console.log(`   - from: ${from} (hex: ${fromHex})`);
-        console.log(`   - to: ${to} (hex: ${toHex})`);
-        console.log(`   - amount: ${amountWei.toString()}`);
-        console.log(`   - nonce: ${currentNonce}`);
-        console.log(`   - deadline: ${deadline}`);
-        console.log(`   - gasCostUSD: ${gasCostUSD}`);
-        console.log(`   - signature length: ${currentSignature.length}`);
-        console.log(`   - signature starts with: ${currentSignature.substring(0, 4)}`);
-        console.log(`   - current time: ${Math.floor(Date.now() / 1000)}`);
-        console.log(`   - time until deadline: ${deadline - Math.floor(Date.now() / 1000)} seconds`);
+        if (attempt > 0) console.log(`🔄 Meta-transfer attempt ${attempt + 1}/${maxRetries}`);
 
         // Additional validation before calling
         if (deadline <= Math.floor(Date.now() / 1000)) {
@@ -830,8 +822,6 @@ async function metaTransferAuto(privateKey, to, amount, bufferBps = 1000) { // 1
           throw new Error(`Invalid signature length: ${sigForContract.length}, expected 132 (0x + 65 bytes)`);
         }
 
-        console.log('🚀 Calling metaTransfer contract method...');
-
         // Try to call metaTransfer with hex addresses
         const sendRes = await contract.metaTransfer(
           fromHex,
@@ -847,41 +837,20 @@ async function metaTransferAuto(privateKey, to, amount, bufferBps = 1000) { // 1
           shouldPollResponse: false
         });
 
-        console.log('✅ Contract call successful, response:', sendRes);
+        console.log('✅ Meta-transfer successful, txId:', sendRes);
 
         const txId = extractTronTxId(sendRes);
         return txId || sendRes;
       } catch (err) {
-        console.error('Tron meta-transfer attempt', attempt + 1, 'error details:');
-        console.error('- Error message:', err.message);
-        console.error('- Error code:', err.code);
-        console.error('- Error data:', err.data);
-        console.error('- Full error object:', JSON.stringify(err, null, 2));
-
-        // Try to get more transaction details if possible
+        // Try to get transaction details if available
         let failedTxId = null;
         if (err.transaction && err.transaction.txID) {
           failedTxId = err.transaction.txID;
-          console.error('- Transaction ID:', failedTxId);
         } else if (err.txID) {
           failedTxId = err.txID;
-          console.error('- Transaction ID:', failedTxId);
         }
-
-        // If we have a transaction ID, get detailed error info
         if (failedTxId) {
-          console.log('🔍 Getting detailed transaction error information...');
           await getTransactionErrorDetails(failedTxId);
-        }
-
-        // Check for common Tron-specific errors
-        const errorMsg = err.message.toLowerCase();
-        if (errorMsg.includes('revert')) {
-          console.error('🚨 CONTRACT REVERT DETECTED - This usually means:');
-          console.error('   - Account still not activated properly');
-          console.error('   - Insufficient TRX balance for fees');
-          console.error('   - Contract logic rejecting the transaction');
-          console.error('   - Invalid parameters or signature');
         }
 
         // Check if rate-limited (429) — wait with backoff and retry
@@ -904,9 +873,7 @@ async function metaTransferAuto(privateKey, to, amount, bufferBps = 1000) { // 1
 
           if (errText.includes('nonce') || errText.includes('already used') || errText.includes('invalid nonce')) {
             if (attempt < maxRetries - 1) {
-              console.log('Detected nonce issue, picking a higher local nonce and re-signing...');
               const nextLocal = getNextLocalTronNonce(from);
-              console.log(`🔁 Local nonce update: ${currentNonce} -> ${nextLocal}`);
               currentNonce = Number(nextLocal);
               const valueResign = { ...value, nonce: BigInt(currentNonce) };
               let newSig = await userWallet.signTypedData(domain, types, valueResign);
@@ -915,34 +882,18 @@ async function metaTransferAuto(privateKey, to, amount, bufferBps = 1000) { // 1
                 throw new Error(`Re-signed signature invalid length: ${newSig.length}`);
               }
               currentSignature = newSig;
-              console.log(`🔄 Regenerated EIP-712 signature for nonce ${currentNonce}: ${currentSignature.substring(0, 20)}...`);
-              // Continue loop to retry
               continue;
             }
           }
         }
 
-        // Other error or max retries reached, throw with more details
         if (attempt === maxRetries - 1) {
-          const detailedError = `Tron meta-transfer failed after ${maxRetries} retries. Last error: ${err.message}`;
-          console.error('🚨 MAX RETRIES REACHED:', detailedError);
-
-          // Try to provide helpful suggestions
-          if (errorMsg.includes('revert') || errorMsg.includes('account')) {
-            console.error('💡 SUGGESTIONS:');
-            console.error('   1. Check if account has enough TRX (>1 TRX for fees)');
-            console.error('   2. Verify contract address and ABI are correct');
-            console.error('   3. Ensure metaTransfer method exists on contract');
-            console.error('   4. Check signature validity');
-          }
-
-          throw new Error(detailedError);
+          throw new Error(`Tron meta-transfer failed after ${maxRetries} retries. Last error: ${err.message}`);
         }
         throw err;
       }
     }
   } catch (err) {
-    console.error('Tron metaTransferAuto error details:', err);
     throw new Error('Tron meta-transfer failed: ' + err.message);
   }
 }
@@ -999,8 +950,8 @@ async function transfer(privateKey, to, amount) {
       console.log('⚠️ Error checking account:', err.message);
     }
 
-    // Activate account if needed (only if account doesn't exist)
-    if (!accountExists) {
+    // Activate or top up account if needed
+    if (!accountExists || !hasSufficientBalance) {
       const companyPrivateKey = process.env.COMPANY_TRON_PRIVATE_KEY;
       if (!companyPrivateKey) {
         throw new Error('Company wallet not configured for account activation');
@@ -1059,7 +1010,7 @@ async function transfer(privateKey, to, amount) {
       if (toAccountExists && toAccountInfo.balance) {
         toAccountBalance = toAccountInfo.balance / 1000000; // Convert to TRX
       }
-      console.log(`Recipient account exists: ${toAccountExists}, balance: ${toAccountBalance} TRX`);
+      console.log(`Recipient account exists: ${toAccountExists}`);
     } catch (err) {
       console.log('⚠️ Error checking recipient account:', err.message);
     }
@@ -1225,9 +1176,9 @@ async function transferWithMaxEnergy(userPrivateKey, to, amount) {
       console.log('⚠️ Error checking account:', err.message);
     }
 
-    // Activate account if needed (only if account doesn't exist)
-    if (!accountExists) {
-      console.log('🔄 Account needs activation, sending 1.1 TRX...');
+    // Activate or top up account if needed
+    if (!accountExists || !hasSufficientBalance) {
+      console.log('🔄 Account needs activation/top-up, sending 1.1 TRX...');
       try {
         const activationTxId = await sendActivationTrx(from, 1.1);
         console.log('✅ Activation TRX sent:', activationTxId);
@@ -1247,7 +1198,7 @@ async function transferWithMaxEnergy(userPrivateKey, to, amount) {
       if (toAccountExists && toAccountInfo.balance) {
         toAccountBalance = toAccountInfo.balance / 1000000; // Convert to TRX
       }
-      console.log(`Recipient account exists: ${toAccountExists}, balance: ${toAccountBalance} TRX`);
+      console.log(`Recipient account exists: ${toAccountExists}`);
     } catch (err) {
       console.log('⚠️ Error checking recipient account:', err.message);
     }
