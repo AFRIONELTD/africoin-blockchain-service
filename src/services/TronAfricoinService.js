@@ -884,6 +884,17 @@ async function metaTransferAuto(privateKey, to, amount, bufferBps = 1000) { // 1
           console.error('   - Invalid parameters or signature');
         }
 
+        // Check if rate-limited (429) — wait with backoff and retry
+        {
+          const is429 = err.message && (err.message.includes('429') || err.message.toLowerCase().includes('rate limit') || err.message.toLowerCase().includes('too many requests'));
+          if (is429 && attempt < maxRetries - 1) {
+            const delay = 1000 * Math.pow(2, attempt); // 1s, 2s, 4s, 8s
+            console.log(`⚠️ Rate-limited (429) on contract call, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+        }
+
         // Check if nonce error (need to detect "nonce already used" in Tron)
         {
           const errText = [err?.message, err?.code, err?.data, (() => { try { return JSON.stringify(err); } catch { return ''; } })()]
