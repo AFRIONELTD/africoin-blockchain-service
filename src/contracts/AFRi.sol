@@ -1,3 +1,6 @@
+/**
+ *Submitted for verification at Etherscan.io on 2025-09-19
+*/
 
 // File: @openzeppelin/contracts/token/ERC20/IERC20.sol
 
@@ -717,6 +720,75 @@ abstract contract Ownable is Context {
         address oldOwner = _owner;
         _owner = newOwner;
         emit OwnershipTransferred(oldOwner, newOwner);
+    }
+}
+
+// File: @openzeppelin/contracts/access/Ownable2Step.sol
+
+
+// OpenZeppelin Contracts (last updated v5.1.0) (access/Ownable2Step.sol)
+
+pragma solidity ^0.8.20;
+
+
+/**
+ * @dev Contract module which provides access control mechanism, where
+ * there is an account (an owner) that can be granted exclusive access to
+ * specific functions.
+ *
+ * This extension of the {Ownable} contract includes a two-step mechanism to transfer
+ * ownership, where the new owner must call {acceptOwnership} in order to replace the
+ * old one. This can help prevent common mistakes, such as transfers of ownership to
+ * incorrect accounts, or to contracts that are unable to interact with the
+ * permission system.
+ *
+ * The initial owner is specified at deployment time in the constructor for `Ownable`. This
+ * can later be changed with {transferOwnership} and {acceptOwnership}.
+ *
+ * This module is used through inheritance. It will make available all functions
+ * from parent (Ownable).
+ */
+abstract contract Ownable2Step is Ownable {
+    address private _pendingOwner;
+
+    event OwnershipTransferStarted(address indexed previousOwner, address indexed newOwner);
+
+    /**
+     * @dev Returns the address of the pending owner.
+     */
+    function pendingOwner() public view virtual returns (address) {
+        return _pendingOwner;
+    }
+
+    /**
+     * @dev Starts the ownership transfer of the contract to a new account. Replaces the pending transfer if there is one.
+     * Can only be called by the current owner.
+     *
+     * Setting `newOwner` to the zero address is allowed; this can be used to cancel an initiated ownership transfer.
+     */
+    function transferOwnership(address newOwner) public virtual override onlyOwner {
+        _pendingOwner = newOwner;
+        emit OwnershipTransferStarted(owner(), newOwner);
+    }
+
+    /**
+     * @dev Transfers ownership of the contract to a new account (`newOwner`) and deletes any pending owner.
+     * Internal function without access restriction.
+     */
+    function _transferOwnership(address newOwner) internal virtual override {
+        delete _pendingOwner;
+        super._transferOwnership(newOwner);
+    }
+
+    /**
+     * @dev The new owner accepts the ownership transfer.
+     */
+    function acceptOwnership() public virtual {
+        address sender = _msgSender();
+        if (pendingOwner() != sender) {
+            revert OwnableUnauthorizedAccount(sender);
+        }
+        _transferOwnership(sender);
     }
 }
 
@@ -3542,272 +3614,656 @@ library MessageHashUtils {
     }
 }
 
-// File: newAfricoin.sol
+// File: @openzeppelin/contracts/utils/StorageSlot.sol
 
+
+// OpenZeppelin Contracts (last updated v5.1.0) (utils/StorageSlot.sol)
+// This file was procedurally generated from scripts/generate/templates/StorageSlot.js.
+
+pragma solidity ^0.8.20;
+
+/**
+ * @dev Library for reading and writing primitive types to specific storage slots.
+ *
+ * Storage slots are often used to avoid storage conflict when dealing with upgradeable contracts.
+ * This library helps with reading and writing to such slots without the need for inline assembly.
+ *
+ * The functions in this library return Slot structs that contain a `value` member that can be used to read or write.
+ *
+ * Example usage to set ERC-1967 implementation slot:
+ * ```solidity
+ * contract ERC1967 {
+ *     // Define the slot. Alternatively, use the SlotDerivation library to derive the slot.
+ *     bytes32 internal constant _IMPLEMENTATION_SLOT = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
+ *
+ *     function _getImplementation() internal view returns (address) {
+ *         return StorageSlot.getAddressSlot(_IMPLEMENTATION_SLOT).value;
+ *     }
+ *
+ *     function _setImplementation(address newImplementation) internal {
+ *         require(newImplementation.code.length > 0);
+ *         StorageSlot.getAddressSlot(_IMPLEMENTATION_SLOT).value = newImplementation;
+ *     }
+ * }
+ * ```
+ *
+ * TIP: Consider using this library along with {SlotDerivation}.
+ */
+library StorageSlot {
+    struct AddressSlot {
+        address value;
+    }
+
+    struct BooleanSlot {
+        bool value;
+    }
+
+    struct Bytes32Slot {
+        bytes32 value;
+    }
+
+    struct Uint256Slot {
+        uint256 value;
+    }
+
+    struct Int256Slot {
+        int256 value;
+    }
+
+    struct StringSlot {
+        string value;
+    }
+
+    struct BytesSlot {
+        bytes value;
+    }
+
+    /**
+     * @dev Returns an `AddressSlot` with member `value` located at `slot`.
+     */
+    function getAddressSlot(bytes32 slot) internal pure returns (AddressSlot storage r) {
+        assembly ("memory-safe") {
+            r.slot := slot
+        }
+    }
+
+    /**
+     * @dev Returns a `BooleanSlot` with member `value` located at `slot`.
+     */
+    function getBooleanSlot(bytes32 slot) internal pure returns (BooleanSlot storage r) {
+        assembly ("memory-safe") {
+            r.slot := slot
+        }
+    }
+
+    /**
+     * @dev Returns a `Bytes32Slot` with member `value` located at `slot`.
+     */
+    function getBytes32Slot(bytes32 slot) internal pure returns (Bytes32Slot storage r) {
+        assembly ("memory-safe") {
+            r.slot := slot
+        }
+    }
+
+    /**
+     * @dev Returns a `Uint256Slot` with member `value` located at `slot`.
+     */
+    function getUint256Slot(bytes32 slot) internal pure returns (Uint256Slot storage r) {
+        assembly ("memory-safe") {
+            r.slot := slot
+        }
+    }
+
+    /**
+     * @dev Returns a `Int256Slot` with member `value` located at `slot`.
+     */
+    function getInt256Slot(bytes32 slot) internal pure returns (Int256Slot storage r) {
+        assembly ("memory-safe") {
+            r.slot := slot
+        }
+    }
+
+    /**
+     * @dev Returns a `StringSlot` with member `value` located at `slot`.
+     */
+    function getStringSlot(bytes32 slot) internal pure returns (StringSlot storage r) {
+        assembly ("memory-safe") {
+            r.slot := slot
+        }
+    }
+
+    /**
+     * @dev Returns an `StringSlot` representation of the string storage pointer `store`.
+     */
+    function getStringSlot(string storage store) internal pure returns (StringSlot storage r) {
+        assembly ("memory-safe") {
+            r.slot := store.slot
+        }
+    }
+
+    /**
+     * @dev Returns a `BytesSlot` with member `value` located at `slot`.
+     */
+    function getBytesSlot(bytes32 slot) internal pure returns (BytesSlot storage r) {
+        assembly ("memory-safe") {
+            r.slot := slot
+        }
+    }
+
+    /**
+     * @dev Returns an `BytesSlot` representation of the bytes storage pointer `store`.
+     */
+    function getBytesSlot(bytes storage store) internal pure returns (BytesSlot storage r) {
+        assembly ("memory-safe") {
+            r.slot := store.slot
+        }
+    }
+}
+
+// File: @openzeppelin/contracts/utils/ShortStrings.sol
+
+
+// OpenZeppelin Contracts (last updated v5.3.0) (utils/ShortStrings.sol)
+
+pragma solidity ^0.8.20;
+
+
+// | string  | 0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA   |
+// | length  | 0x                                                              BB |
+type ShortString is bytes32;
+
+/**
+ * @dev This library provides functions to convert short memory strings
+ * into a `ShortString` type that can be used as an immutable variable.
+ *
+ * Strings of arbitrary length can be optimized using this library if
+ * they are short enough (up to 31 bytes) by packing them with their
+ * length (1 byte) in a single EVM word (32 bytes). Additionally, a
+ * fallback mechanism can be used for every other case.
+ *
+ * Usage example:
+ *
+ * ```solidity
+ * contract Named {
+ *     using ShortStrings for *;
+ *
+ *     ShortString private immutable _name;
+ *     string private _nameFallback;
+ *
+ *     constructor(string memory contractName) {
+ *         _name = contractName.toShortStringWithFallback(_nameFallback);
+ *     }
+ *
+ *     function name() external view returns (string memory) {
+ *         return _name.toStringWithFallback(_nameFallback);
+ *     }
+ * }
+ * ```
+ */
+library ShortStrings {
+    // Used as an identifier for strings longer than 31 bytes.
+    bytes32 private constant FALLBACK_SENTINEL = 0x00000000000000000000000000000000000000000000000000000000000000FF;
+
+    error StringTooLong(string str);
+    error InvalidShortString();
+
+    /**
+     * @dev Encode a string of at most 31 chars into a `ShortString`.
+     *
+     * This will trigger a `StringTooLong` error is the input string is too long.
+     */
+    function toShortString(string memory str) internal pure returns (ShortString) {
+        bytes memory bstr = bytes(str);
+        if (bstr.length > 31) {
+            revert StringTooLong(str);
+        }
+        return ShortString.wrap(bytes32(uint256(bytes32(bstr)) | bstr.length));
+    }
+
+    /**
+     * @dev Decode a `ShortString` back to a "normal" string.
+     */
+    function toString(ShortString sstr) internal pure returns (string memory) {
+        uint256 len = byteLength(sstr);
+        // using `new string(len)` would work locally but is not memory safe.
+        string memory str = new string(32);
+        assembly ("memory-safe") {
+            mstore(str, len)
+            mstore(add(str, 0x20), sstr)
+        }
+        return str;
+    }
+
+    /**
+     * @dev Return the length of a `ShortString`.
+     */
+    function byteLength(ShortString sstr) internal pure returns (uint256) {
+        uint256 result = uint256(ShortString.unwrap(sstr)) & 0xFF;
+        if (result > 31) {
+            revert InvalidShortString();
+        }
+        return result;
+    }
+
+    /**
+     * @dev Encode a string into a `ShortString`, or write it to storage if it is too long.
+     */
+    function toShortStringWithFallback(string memory value, string storage store) internal returns (ShortString) {
+        if (bytes(value).length < 32) {
+            return toShortString(value);
+        } else {
+            StorageSlot.getStringSlot(store).value = value;
+            return ShortString.wrap(FALLBACK_SENTINEL);
+        }
+    }
+
+    /**
+     * @dev Decode a string that was encoded to `ShortString` or written to storage using {toShortStringWithFallback}.
+     */
+    function toStringWithFallback(ShortString value, string storage store) internal pure returns (string memory) {
+        if (ShortString.unwrap(value) != FALLBACK_SENTINEL) {
+            return toString(value);
+        } else {
+            return store;
+        }
+    }
+
+    /**
+     * @dev Return the length of a string that was encoded to `ShortString` or written to storage using
+     * {toShortStringWithFallback}.
+     *
+     * WARNING: This will return the "byte length" of the string. This may not reflect the actual length in terms of
+     * actual characters as the UTF-8 encoding of a single character can span over multiple bytes.
+     */
+    function byteLengthWithFallback(ShortString value, string storage store) internal view returns (uint256) {
+        if (ShortString.unwrap(value) != FALLBACK_SENTINEL) {
+            return byteLength(value);
+        } else {
+            return bytes(store).length;
+        }
+    }
+}
+
+// File: @openzeppelin/contracts/interfaces/IERC5267.sol
+
+
+// OpenZeppelin Contracts (last updated v5.4.0) (interfaces/IERC5267.sol)
+
+pragma solidity >=0.4.16;
+
+interface IERC5267 {
+    /**
+     * @dev MAY be emitted to signal that the domain could have changed.
+     */
+    event EIP712DomainChanged();
+
+    /**
+     * @dev returns the fields and values that describe the domain separator used by this contract for EIP-712
+     * signature.
+     */
+    function eip712Domain()
+        external
+        view
+        returns (
+            bytes1 fields,
+            string memory name,
+            string memory version,
+            uint256 chainId,
+            address verifyingContract,
+            bytes32 salt,
+            uint256[] memory extensions
+        );
+}
+
+// File: @openzeppelin/contracts/utils/cryptography/EIP712.sol
+
+
+// OpenZeppelin Contracts (last updated v5.4.0) (utils/cryptography/EIP712.sol)
 
 pragma solidity ^0.8.20;
 
 
 
 
-
 /**
- * @title Africoin
- * @dev Implementation of the Africoin ERC20 token with EIP-712 meta-transactions
- * @notice This contract allows users to execute transactions without ETH using meta-transactions
- * @author AFRiONE - info@afrione.co
+ * @dev https://eips.ethereum.org/EIPS/eip-712[EIP-712] is a standard for hashing and signing of typed structured data.
+ *
+ * The encoding scheme specified in the EIP requires a domain separator and a hash of the typed structured data, whose
+ * encoding is very generic and therefore its implementation in Solidity is not feasible, thus this contract
+ * does not implement the encoding itself. Protocols need to implement the type-specific encoding they need in order to
+ * produce the hash of their typed data using a combination of `abi.encode` and `keccak256`.
+ *
+ * This contract implements the EIP-712 domain separator ({_domainSeparatorV4}) that is used as part of the encoding
+ * scheme, and the final step of the encoding to obtain the message digest that is then signed via ECDSA
+ * ({_hashTypedDataV4}).
+ *
+ * The implementation of the domain separator was designed to be as efficient as possible while still properly updating
+ * the chain id to protect against replay attacks on an eventual fork of the chain.
+ *
+ * NOTE: This contract implements the version of the encoding known as "v4", as implemented by the JSON RPC method
+ * https://docs.metamask.io/guide/signing-data.html[`eth_signTypedDataV4` in MetaMask].
+ *
+ * NOTE: In the upgradeable version of this contract, the cached values will correspond to the address, and the domain
+ * separator of the implementation contract. This will cause the {_domainSeparatorV4} function to always rebuild the
+ * separator from the immutable values, which is cheaper than accessing a cached version in cold storage.
+ *
+ * @custom:oz-upgrades-unsafe-allow state-variable-immutable
  */
-contract Africoin is ERC20, Ownable {
-    using ECDSA for bytes32;
-    using MessageHashUtils for bytes32;
+abstract contract EIP712 is IERC5267 {
+    using ShortStrings for *;
 
-    // EIP-712 Domain Separator
-    bytes32 private immutable _DOMAIN_SEPARATOR;
-    
-    // EIP-712 Type Hash for meta-transactions
-    bytes32 private constant _META_TRANSACTION_TYPEHASH = 
-        keccak256("MetaTransaction(address from,address to,uint256 amount,uint256 nonce)");
-    
-    // Mapping of nonces for each address
-    mapping(address => uint256) private _nonces;
-    
-    // Company relayer address that will pay for gas
-    address public companyRelayer;
-    
-    // Admin addresses that can mint tokens
-    mapping(address => bool) public admins;
-    
-    // Events
-    event MetaTransactionExecuted(address indexed from, address indexed to, uint256 amount, address relayer);
-    event AdminAdded(address indexed admin);
-    event AdminRemoved(address indexed admin);
-    event RelayerChanged(address indexed oldRelayer, address indexed newRelayer);
-    
+    bytes32 private constant TYPE_HASH =
+        keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
+
+    // Cache the domain separator as an immutable value, but also store the chain id that it corresponds to, in order to
+    // invalidate the cached domain separator if the chain id changes.
+    bytes32 private immutable _cachedDomainSeparator;
+    uint256 private immutable _cachedChainId;
+    address private immutable _cachedThis;
+
+    bytes32 private immutable _hashedName;
+    bytes32 private immutable _hashedVersion;
+
+    ShortString private immutable _name;
+    ShortString private immutable _version;
+    // slither-disable-next-line constable-states
+    string private _nameFallback;
+    // slither-disable-next-line constable-states
+    string private _versionFallback;
+
     /**
-     * @dev Constructor that initializes the token and sets up EIP-712 domain separator
-     * @param name_ The name of the token
-     * @param symbol_ The symbol of the token
-     * @param initialRelayer_ The initial relayer address
+     * @dev Initializes the domain separator and parameter caches.
+     *
+     * The meaning of `name` and `version` is specified in
+     * https://eips.ethereum.org/EIPS/eip-712#definition-of-domainseparator[EIP-712]:
+     *
+     * - `name`: the user readable name of the signing domain, i.e. the name of the DApp or the protocol.
+     * - `version`: the current major version of the signing domain.
+     *
+     * NOTE: These parameters cannot be changed except through a xref:learn::upgrading-smart-contracts.adoc[smart
+     * contract upgrade].
      */
-    constructor(
-        string memory name_,
-        string memory symbol_,
-        address initialRelayer_
-    ) ERC20(name_, symbol_) Ownable(msg.sender) {
-        require(initialRelayer_ != address(0), "Relayer cannot be zero address");
-        companyRelayer = initialRelayer_;
-        
-        // Initialize the domain separator for EIP-712
-        _DOMAIN_SEPARATOR = keccak256(
-            abi.encode(
-                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
-                keccak256(bytes(name_)),
-                keccak256(bytes("1")),
-                block.chainid,
-                address(this)
-            )
+    constructor(string memory name, string memory version) {
+        _name = name.toShortStringWithFallback(_nameFallback);
+        _version = version.toShortStringWithFallback(_versionFallback);
+        _hashedName = keccak256(bytes(name));
+        _hashedVersion = keccak256(bytes(version));
+
+        _cachedChainId = block.chainid;
+        _cachedDomainSeparator = _buildDomainSeparator();
+        _cachedThis = address(this);
+    }
+
+    /**
+     * @dev Returns the domain separator for the current chain.
+     */
+    function _domainSeparatorV4() internal view returns (bytes32) {
+        if (address(this) == _cachedThis && block.chainid == _cachedChainId) {
+            return _cachedDomainSeparator;
+        } else {
+            return _buildDomainSeparator();
+        }
+    }
+
+    function _buildDomainSeparator() private view returns (bytes32) {
+        return keccak256(abi.encode(TYPE_HASH, _hashedName, _hashedVersion, block.chainid, address(this)));
+    }
+
+    /**
+     * @dev Given an already https://eips.ethereum.org/EIPS/eip-712#definition-of-hashstruct[hashed struct], this
+     * function returns the hash of the fully encoded EIP712 message for this domain.
+     *
+     * This hash can be used together with {ECDSA-recover} to obtain the signer of a message. For example:
+     *
+     * ```solidity
+     * bytes32 digest = _hashTypedDataV4(keccak256(abi.encode(
+     *     keccak256("Mail(address to,string contents)"),
+     *     mailTo,
+     *     keccak256(bytes(mailContents))
+     * )));
+     * address signer = ECDSA.recover(digest, signature);
+     * ```
+     */
+    function _hashTypedDataV4(bytes32 structHash) internal view virtual returns (bytes32) {
+        return MessageHashUtils.toTypedDataHash(_domainSeparatorV4(), structHash);
+    }
+
+    /// @inheritdoc IERC5267
+    function eip712Domain()
+        public
+        view
+        virtual
+        returns (
+            bytes1 fields,
+            string memory name,
+            string memory version,
+            uint256 chainId,
+            address verifyingContract,
+            bytes32 salt,
+            uint256[] memory extensions
+        )
+    {
+        return (
+            hex"0f", // 01111
+            _EIP712Name(),
+            _EIP712Version(),
+            block.chainid,
+            address(this),
+            bytes32(0),
+            new uint256[](0)
         );
     }
-    
+
     /**
-     * @dev Modifier to restrict function access to admins
+     * @dev The name parameter for the EIP712 domain.
+     *
+     * NOTE: By default this function reads _name which is an immutable value.
+     * It only reads from storage if necessary (in case the value is too large to fit in a ShortString).
      */
+    // solhint-disable-next-line func-name-mixedcase
+    function _EIP712Name() internal view returns (string memory) {
+        return _name.toStringWithFallback(_nameFallback);
+    }
+
+    /**
+     * @dev The version parameter for the EIP712 domain.
+     *
+     * NOTE: By default this function reads _version which is an immutable value.
+     * It only reads from storage if necessary (in case the value is too large to fit in a ShortString).
+     */
+    // solhint-disable-next-line func-name-mixedcase
+    function _EIP712Version() internal view returns (string memory) {
+        return _version.toStringWithFallback(_versionFallback);
+    }
+}
+
+// File: newAfricoin.sol
+
+//SPDX-License-Identifier:MIT
+pragma solidity ^0.8.0;
+
+
+
+
+
+contract AFRi is ERC20, Ownable2Step, EIP712 {
+    using ECDSA for bytes32;
+
+    // Admin management
+    mapping(address => bool) private _admins;
+    
+    // Meta-transaction management
+    mapping(bytes32 => bool) private _usedNonces;
+    mapping(address => uint256) private _nonces;
+    
+    
+    // EIP-712 type hashes
+    bytes32 private constant TRANSFER_TYPEHASH = keccak256(
+        "Transfer(address from,address to,uint256 amount,uint256 nonce,uint256 deadline,uint256 gasCostUSD)"
+    );
+    
+    bytes32 private constant APPROVE_TYPEHASH = keccak256(
+        "Approve(address owner,address spender,uint256 amount,uint256 nonce,uint256 deadline,uint256 gasCostUSD)"
+    );
+
+    event AdminAdded(address indexed admin);
+    event AdminRemoved(address indexed admin);
+    event TokensBurned(address indexed account, uint256 amount);
+    event MetaTransfer(address indexed from, address indexed to, uint256 amount, uint256 gasCost);
+    event MetaApprove(address indexed owner, address indexed spender, uint256 amount, uint256 gasCost);
+
+    constructor(address owner) ERC20("AFRi", "AFRi") Ownable(owner) EIP712("AFRi", "1") {
+    
+    }
+
     modifier onlyAdmin() {
-        require(admins[msg.sender], "Only admin can call this function");
+        require(_admins[msg.sender], "AFRi: caller is not an admin");
         _;
     }
-    
-    /**
-     * @dev Modifier to restrict function access to company relayer
-     */
-    modifier onlyRelayer() {
-        require(msg.sender == companyRelayer, "Only company relayer can call this function");
-        _;
-    }
-    
-    /**
-     * @dev Returns the current nonce for an address
-     * @param user Address to get the nonce for
-     * @return Current nonce value
-     */
-    function getNonce(address user) external view returns (uint256) {
-        return _nonces[user];
-    }
-    
-    /**
-     * @dev Sets a new company relayer address (only owner)
-     * @param newRelayer Address of the new relayer
-     */
-    function setCompanyRelayer(address newRelayer) external onlyOwner {
-        require(newRelayer != address(0), "New relayer cannot be zero address");
-        address oldRelayer = companyRelayer;
-        companyRelayer = newRelayer;
-        emit RelayerChanged(oldRelayer, newRelayer);
-    }
-    
-    /**
-     * @dev Add a new admin (only owner)
-     * @param admin Address to add as admin
-     */
-    function addAdmin(address admin) external onlyOwner {
-        require(admin != address(0), "Admin cannot be zero address");
-        require(admin != owner(), "Owner cannot be added as admin");
-        require(!admins[admin], "Address is already an admin");
-        admins[admin] = true;
+
+
+
+    // Admin functions
+    function addAdmin(address admin) public onlyOwner {
+        require(admin != address(0), "AFRi: admin is the zero address");
+        require(admin != owner(), "AFRi: owner cannot be admin");
+        require(!_admins[admin], "AFRi: already an admin");
+        _admins[admin] = true;
         emit AdminAdded(admin);
     }
-    
-    /**
-     * @dev Remove an admin (only owner)
-     * @param admin Address to remove as admin
-     */
-    function removeAdmin(address admin) external onlyOwner {
-        require(admins[admin], "Address is not an admin");
-        admins[admin] = false;
+
+    function removeAdmin(address admin) public onlyOwner {
+        require(_admins[admin], "AFRi: not an admin");
+        _admins[admin] = false;
         emit AdminRemoved(admin);
     }
-    
-    /**
-     * @dev Check if an address is an admin
-     * @param admin Address to check
-     * @return Whether the address is an admin
-     */
-    function isAdmin(address admin) external view returns (bool) {
-        return admins[admin];
+
+    function isAdmin(address admin) public view returns (bool) {
+        return _admins[admin];
     }
-    
-    /**
-     * @dev Executes a meta-transaction on behalf of a user
-     * @param from Address of the user who signed the meta-transaction
-     * @param to Recipient address
-     * @param amount Amount of tokens to transfer
-     * @param nonce Current nonce of the user
-     * @param signature EIP-712 signature signed by the user
-     * @return success Whether the transaction was successful
-     */
-    function executeMetaTransaction(
+
+    function mint(address to, uint256 amount) public onlyAdmin {
+        _mint(to, amount);
+    }
+
+    // Admin burn function
+    function burnFrom(address account, uint256 amount) public onlyAdmin {
+        require(account != address(0), "AFRi: burn from the zero address");
+        require(balanceOf(account) >= amount, "AFRi: burn amount exceeds balance");
+        
+        _burn(account, amount);
+        emit TokensBurned(account, amount);
+    }
+
+
+    // Meta-transaction functions
+    function metaTransfer(
         address from,
         address to,
         uint256 amount,
         uint256 nonce,
+        uint256 deadline,
+        uint256 gasCostUSD, // Pre-calculated gas cost in USD (since 1 AFRi = $1)
         bytes memory signature
-    ) external returns (bool) {
-        // Verify nonce
-        require(nonce == _nonces[from], "Invalid nonce");
+    ) public onlyAdmin {
+        require(block.timestamp <= deadline, "AFRi: transaction expired");
+        require(!_usedNonces[keccak256(abi.encodePacked(from, nonce))], "AFRi: nonce already used");
+        require(gasCostUSD > 0, "AFRi: gas cost must be greater than 0");
         
-        // Verify signature
-        bytes32 structHash = keccak256(
-            abi.encode(
-                _META_TRANSACTION_TYPEHASH,
-                from,
-                to,
-                amount,
-                nonce
-            )
-        );
+        // Verify signature (include gasCostUSD in signature)
+        bytes32 structHash = keccak256(abi.encode(
+            TRANSFER_TYPEHASH,
+            from,
+            to,
+            amount,
+            nonce,
+            deadline,
+            gasCostUSD
+        ));
+        bytes32 hash = _hashTypedDataV4(structHash);
+        address signer = hash.recover(signature);
+        require(signer == from, "AFRi: invalid signature");
         
-        bytes32 digest = keccak256(
-            abi.encodePacked(
-                "\x19\x01",
-                _DOMAIN_SEPARATOR,
-                structHash
-            )
-        );
+        // Mark nonce as used
+        _usedNonces[keccak256(abi.encodePacked(from, nonce))] = true;
         
-        address signer = digest.recover(signature);
-        require(signer == from, "Invalid signature");
+        // Check if user has enough balance for transfer + gas cost
+        require(balanceOf(from) >= amount + gasCostUSD, "AFRi: insufficient balance for transfer and gas");
         
-        // Increment nonce
-        _nonces[from]++;
-        
-        // Execute the transfer
+        // Execute transfer
         _transfer(from, to, amount);
         
-        // Emit event
-        emit MetaTransactionExecuted(from, to, amount, msg.sender);
+        // Deduct gas cost from user's balance (gasCostUSD is already in AFRi tokens since 1 AFRi = $1)
+        _transfer(from, address(this), gasCostUSD);
         
-        return true;
+        emit MetaTransfer(from, to, amount, gasCostUSD);
     }
-    
-    /**
-     * @dev Mint tokens (restricted to admins)
-     * @param to Address to mint tokens to
-     * @param amount Amount of tokens to mint
-     */
-    function mint(address to, uint256 amount) external onlyAdmin {
-        _mint(to, amount);
-    }
-    
-    /**
-     * @dev Deduct gas fee in Africoin tokens
-     * @param from User who will pay the fee
-     * @param to Address to receive the fee (typically company wallet)
-     * @param amount Amount of tokens to transfer as fee
-     * @return success Whether the fee deduction was successful
-     */
-    function deductGasFee(
-        address from,
-        address to,
-        uint256 amount
-    ) external onlyRelayer returns (bool) {
-        _transfer(from, to, amount);
-        return true;
-    }
-    
-    /**
-     * @dev Returns the domain separator for EIP-712
-     * @return Domain separator
-     */
-    function DOMAIN_SEPARATOR() external view returns (bytes32) {
-        return _DOMAIN_SEPARATOR;
-    }
-    
-    /**
-     * @dev Helper function to get the EIP-712 domain type hash
-     * @return Domain type hash
-     */
-    function getDomainTypeHash() external pure returns (bytes32) {
-        return keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
-    }
-    
-    /**
-     * @dev Helper function to get the meta-transaction type hash
-     * @return Meta-transaction type hash
-     */
-    function getMetaTransactionTypeHash() external pure returns (bytes32) {
-        return _META_TRANSACTION_TYPEHASH;
-    }
-    
-    /**
-     * @dev Creates the data to be signed for a meta-transaction
-     * @param from Sender address
-     * @param to Recipient address
-     * @param amount Amount to transfer
-     * @param nonce Current nonce of the sender
-     * @return Digest to be signed
-     */
-    function getMetaTransactionDigest(
-        address from,
-        address to,
+
+    function metaApprove(
+        address owner,
+        address spender,
         uint256 amount,
-        uint256 nonce
-    ) external view returns (bytes32) {
-        bytes32 structHash = keccak256(
-            abi.encode(
-                _META_TRANSACTION_TYPEHASH,
-                from,
-                to,
-                amount,
-                nonce
-            )
-        );
+        uint256 nonce,
+        uint256 deadline,
+        uint256 gasCostUSD, // Pre-calculated gas cost in USD (since 1 AFRi = $1)
+        bytes memory signature
+    ) public onlyAdmin {
+        require(block.timestamp <= deadline, "AFRi: transaction expired");
+        require(!_usedNonces[keccak256(abi.encodePacked(owner, nonce))], "AFRi: nonce already used");
+        require(gasCostUSD > 0, "AFRi: gas cost must be greater than 0");
         
-        return keccak256(
-            abi.encodePacked(
-                "\x19\x01",
-                _DOMAIN_SEPARATOR,
-                structHash
-            )
-        );
+        // Verify signature (include gasCostUSD in signature)
+        bytes32 structHash = keccak256(abi.encode(
+            APPROVE_TYPEHASH,
+            owner,
+            spender,
+            amount,
+            nonce,
+            deadline,
+            gasCostUSD
+        ));
+        bytes32 hash = _hashTypedDataV4(structHash);
+        address signer = hash.recover(signature);
+        require(signer == owner, "AFRi: invalid signature");
+        
+        // Mark nonce as used
+        _usedNonces[keccak256(abi.encodePacked(owner, nonce))] = true;
+        
+        // Check if user has enough balance for gas cost
+        require(balanceOf(owner) >= gasCostUSD, "AFRi: insufficient balance for gas");
+        
+        // Execute approval
+        _approve(owner, spender, amount);
+        
+        // Deduct gas cost from user's balance (gasCostUSD is already in AFRi tokens since 1 AFRi = $1)
+        _transfer(owner,address(this), gasCostUSD);
+        
+        emit MetaApprove(owner, spender, amount, gasCostUSD);
+    }
+
+    // Utility functions
+    function getNonce(address user) public view returns (uint256) {
+        return _nonces[user];
+    }
+
+    function incrementNonce(address user) public onlyAdmin {
+        _nonces[user]++;
+    }
+
+    // Standard ERC20 functions
+    function transfer(address to, uint256 amount) public override returns (bool) {
+        return super.transfer(to, amount);
+    }
+
+    function transferFrom(address from, address to, uint256 amount) public override returns (bool) {
+        return super.transferFrom(from, to, amount);
+    }
+
+    function approve(address spender, uint256 amount) public override returns (bool) {
+        return super.approve(spender, amount);
+    }
+
+    function rescueToken( IERC20 token, uint256 amount, address _to) public onlyAdmin {
+         token.transfer(_to,amount);
     }
 }

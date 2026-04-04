@@ -7,6 +7,9 @@ const TronAfricoinService = require('../services/TronAfricoinService');
 const { sendResponse } = require('../utils/response');
 const { authenticateToken } = require('../middleware/auth');
 const { ethers } = require('ethers');
+const axios = require('axios');
+const logger = require('../utils/logger');
+const africoinTronAbi = require('../abi/tron/africoin.json').abi;
 
 // Protect all routes with JWT authentication
 router.use(authenticateToken);
@@ -26,7 +29,8 @@ router.post('/mint', async (req, res) => {
       if (!to.startsWith('0x')) throw new Error('AFRi_ERC20 mint requires a 0x... address');
       const tx = await africoinService.mint(privateKey, to, amount);
       txHash = tx.hash;
-      explorerUrl = process.env.NODE_ENV === 'test' ? `https://sepolia.etherscan.io/tx/${txHash}` : `https://etherscan.io/tx/${txHash}`;
+      const isTest = process.env.NODE_ENV === 'test' || /sepolia/i.test(process.env.ETHEREUM_RPC_URL || '');
+      explorerUrl = isTest ? `https://sepolia.etherscan.io/tx/${txHash}` : `https://etherscan.io/tx/${txHash}`;
     } else if (normalizedType === 'AFRI_TRC20') {
       if (!to.startsWith('T')) throw new Error('AFRi_TRC20 mint requires a T... address');
       const cleanPk = privateKey.startsWith('0x') ? privateKey.slice(2) : privateKey; // Tron expects raw hex
@@ -56,7 +60,8 @@ router.post('/burn', async (req, res) => {
       if (!from.startsWith('0x')) throw new Error('AFRi_ERC20 burn requires a 0x... address for from');
       const tx = await africoinService.burn(privateKey, from, amount);
       txHash = tx.hash;
-      explorerUrl = process.env.NODE_ENV === 'test' ? `https://sepolia.etherscan.io/tx/${txHash}` : `https://etherscan.io/tx/${txHash}`;
+      const isTest = process.env.NODE_ENV === 'test' || /sepolia/i.test(process.env.ETHEREUM_RPC_URL || '');
+      explorerUrl = isTest ? `https://sepolia.etherscan.io/tx/${txHash}` : `https://etherscan.io/tx/${txHash}`;
     } else if (normalizedChain === 'AFRI_TRC20') {
       if (!from.startsWith('T')) throw new Error('AFRi_TRC20 burn requires a T... address for from');
       const cleanPk = privateKey.startsWith('0x') ? privateKey.slice(2) : privateKey; // Tron expects raw hex
@@ -86,7 +91,8 @@ router.post('/add-admin', async (req, res) => {
     if (normalizedChain === 'AFRI_ERC20') {
       const tx = await africoinService.addAdmin(privateKey, admin);
       txHash = tx.hash;
-      explorerUrl = process.env.NODE_ENV === 'test' ? `https://sepolia.etherscan.io/tx/${txHash}` : `https://etherscan.io/tx/${txHash}`;
+      const isTest = process.env.NODE_ENV === 'test' || /sepolia/i.test(process.env.ETHEREUM_RPC_URL || '');
+      explorerUrl = isTest ? `https://sepolia.etherscan.io/tx/${txHash}` : `https://etherscan.io/tx/${txHash}`;
     } else if (normalizedChain === 'AFRI_TRC20') {
       const cleanPk = privateKey; // Tron expects raw hex
       const tx = await TronAfricoinService.addAdmin(cleanPk, admin);
@@ -106,7 +112,8 @@ router.post('/remove-admin', async (req, res) => {
   const { admin } = req.body;
   try {
     const tx = await africoinService.removeAdmin(admin);
-    const explorerUrl = process.env.NODE_ENV === 'test' ? `https://sepolia.etherscan.io/tx/${tx.hash}` : `https://etherscan.io/tx/${tx.hash}`;
+    const isTest = process.env.NODE_ENV === 'test' || /sepolia/i.test(process.env.ETHEREUM_RPC_URL || '');
+    const explorerUrl = isTest ? `https://sepolia.etherscan.io/tx/${tx.hash}` : `https://etherscan.io/tx/${tx.hash}`;
     sendResponse(res, { success: true, message: 'Admin removed successfully', data: { txHash: tx.hash, explorerUrl } });
   } catch (err) {
     sendResponse(res, { success: false, message: err.message, data: null, status: 400 });
@@ -130,6 +137,209 @@ router.get('/balance/:address', async (req, res) => {
     sendResponse(res, { success: true, message: 'Balance retrieved successfully', data: { balance: balance.toString() } });
   } catch (err) {
     sendResponse(res, { success: false, message: err.message, data: null, status: 400 });
+  }
+});
+
+// --- HELPERS FOR ETHEREUM: totalSupply, burned, and minted ---
+async function getEthStats() {
+  const config = require('../config/provider');
+  const contractAddress = (process.env.CONTRACT_ADDRESS_ETH || config.ethereum?.contractAddress).toLowerCase();
+  const apiKey = (process.env.ETHERSCAN_API_KEY || '').trim();
+  if (!contractAddress) throw new Error('CONTRACT_ADDRESS_ETH not set');
+  if (!apiKey) throw new Error('ETHERSCAN_API_KEY not set');
+
+  const topic0 = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
+  const zeroAddrTopic = '0x0000000000000000000000000000000000000000000000000000000000000000';
+  const baseUrl = 'https://api.etherscan.io/v2/api';
+  const rpcUrl = (config && config.ethereum && config.ethereum.rpcUrl) || '';
+  const isSepolia = /sepolia/i.test(rpcUrl) || (process.env.NODE_ENV || '').toLowerCase() === 'test';
+  const chainid = isSepolia ? '11155111' : '1';
+
+  try {
+    // Minted: from = 0
+    const mintUrl = `${baseUrl}?chainid=${chainid}&module=logs&action=getLogs&fromBlock=0&toBlock=latest&address=${contractAddress}&topic0=${topic0}&topic0_1_opr=and&topic1=${zeroAddrTopic}&apikey=${apiKey}`;
+    // Burned: to = 0
+    const burnUrl = `${baseUrl}?chainid=${chainid}&module=logs&action=getLogs&fromBlock=0&toBlock=latest&address=${contractAddress}&topic0=${topic0}&topic0_2_opr=and&topic2=${zeroAddrTopic}&apikey=${apiKey}`;
+
+    const [mintRes, burnRes] = await Promise.all([
+      axios.get(mintUrl),
+      axios.get(burnUrl)
+    ]);
+
+    let totalMinted = 0n;
+    if (mintRes.data.status === '1' && Array.isArray(mintRes.data.result)) {
+      mintRes.data.result.forEach(log => {
+        totalMinted += BigInt(log.data === '0x' ? '0' : log.data);
+      });
+    }
+
+    let totalBurned = 0n;
+    if (burnRes.data.status === '1' && Array.isArray(burnRes.data.result)) {
+      burnRes.data.result.forEach(log => {
+        totalBurned += BigInt(log.data === '0x' ? '0' : log.data);
+      });
+    }
+
+    return {
+      totalMinted: ethers.formatUnits(totalMinted, 18),
+      totalBurned: ethers.formatUnits(totalBurned, 18)
+    };
+  } catch (err) {
+    logger.error(`Error fetching ETH stats from Etherscan: ${err.message}`);
+    throw err;
+  }
+}
+
+// --- HELPERS FOR TRON: minted and burned ---
+async function getTronStats(contractAddr) {
+  const tronWeb = TronWalletService.tronWeb;
+  const cleanAddr = String(contractAddr).trim();
+  const tronGridUrl = 'https://api.shasta.trongrid.io'; // Using ShastaGrid directly for events
+
+  try {
+    let totalMinted = 0n;
+    let totalBurned = 0n;
+    let fingerPrint = '';
+    let hasMore = true;
+
+    while (hasMore) {
+      const url = `${tronGridUrl}/v1/contracts/${cleanAddr}/events?event_name=Transfer&limit=200${fingerPrint ? `&fingerprint=${fingerPrint}` : ''}`;
+      const response = await axios.get(url);
+      
+      if (response.data && response.data.data) {
+        response.data.data.forEach(event => {
+          const { from, to, value } = event.result;
+          const valBI = BigInt(value);
+          
+          // Improved zero address detection: handles 0x..., T..., and 41... hex formats
+          const isZero = (addr) => {
+            if (!addr) return false;
+            const a = String(addr).toLowerCase();
+            return a === '0x0000000000000000000000000000000000000000' || 
+                   a === 't9yd14nj9j7xab4dbgeix9h8unkkhxuwwb' || 
+                   a === '410000000000000000000000000000000000000000' ||
+                   a === '0x410000000000000000000000000000000000000000';
+          };
+
+          if (isZero(from)) totalMinted += valBI;
+          if (isZero(to)) totalBurned += valBI;
+        });
+
+        if (response.data.meta && response.data.meta.fingerprint) {
+          fingerPrint = response.data.meta.fingerprint;
+        } else {
+          hasMore = false;
+        }
+      } else {
+        hasMore = false;
+      }
+    }
+
+    // Dynamic decimals (fall back to 18 for AFRi standards)
+    const decimals = await getTronDecimals(cleanAddr);
+
+    return {
+      totalMinted: ethers.formatUnits(totalMinted, decimals),
+      totalBurned: ethers.formatUnits(totalBurned, decimals)
+    };
+  } catch (err) {
+    logger.error(`Error fetching TRON stats from TronGrid: ${err.message}`);
+    throw err;
+  }
+}
+
+// Get TRON token decimals (fall back to 18)
+async function getTronDecimals(contractAddr) {
+  const tronWeb = TronWalletService.tronWeb;
+  if (!tronWeb) return 18;
+  try {
+    const cleanAddr = String(contractAddr).trim();
+    const base58Contract = cleanAddr.startsWith('T') ? cleanAddr : tronWeb.address.fromHex(cleanAddr);
+    
+    const contract = await tronWeb.contract(africoinTronAbi, base58Contract);
+    if (typeof contract.decimals === 'function') {
+      const d = await contract.decimals().call();
+      return Number(d.toString());
+    }
+  } catch (err) {
+    logger.warn(`Could not read TRON decimals for ${contractAddr}, defaulting to 18:`, err?.message || err);
+  }
+  return 18;
+}
+
+// --- UPDATED ROUTES ---
+
+// Get total tokens minted
+router.get('/minted', async (req, res) => {
+  const blockchainParam = (req.body && req.body.blockchain) || req.query.blockchain;
+  const kind = String(blockchainParam || 'AFRi_ERC20').toUpperCase();
+
+  try {
+    if (kind === 'AFRI_ERC20') {
+      const stats = await getEthStats();
+      return sendResponse(res, {
+        success: true,
+        message: 'Total minted (AFRI)',
+        data: {
+          blockchain: kind,
+          totalMinted: stats.totalMinted
+        }
+      });
+    } else if (kind === 'AFRI_TRC20') {
+      const contractAddr = process.env.CONTRACT_ADDRESS_TRON;
+      if (!contractAddr) throw new Error('CONTRACT_ADDRESS_TRON not configured');
+
+      const stats = await getTronStats(contractAddr);
+      return sendResponse(res, {
+        success: true,
+        message: 'Total minted (AFRI)',
+        data: {
+          blockchain: kind,
+          totalMinted: stats.totalMinted
+        }
+      });
+    } else {
+      return sendResponse(res, { success: false, message: 'Invalid blockchain. Use AFRi_ERC20 or AFRi_TRC20.', data: null, status: 400 });
+    }
+  } catch (err) {
+    sendResponse(res, { success: false, message: err.message, data: null, status: 500 });
+  }
+});
+
+// Get total tokens burned
+router.get('/burned', async (req, res) => {
+  const blockchainParam = (req.body && req.body.blockchain) || req.query.blockchain;
+  const kind = String(blockchainParam || 'AFRi_ERC20').toUpperCase();
+
+  try {
+    if (kind === 'AFRI_ERC20') {
+      const stats = await getEthStats();
+      return sendResponse(res, {
+        success: true,
+        message: 'Total burned (AFRI)',
+        data: {
+          blockchain: kind,
+          totalBurned: stats.totalBurned
+        }
+      });
+    } else if (kind === 'AFRI_TRC20') {
+      const contractAddr = process.env.CONTRACT_ADDRESS_TRON;
+      if (!contractAddr) throw new Error('CONTRACT_ADDRESS_TRON not configured');
+
+      const stats = await getTronStats(contractAddr);
+      return sendResponse(res, {
+        success: true,
+        message: 'Total burned (AFRI)',
+        data: {
+          blockchain: kind,
+          totalBurned: stats.totalBurned
+        }
+      });
+    } else {
+      return sendResponse(res, { success: false, message: 'Invalid blockchain. Use AFRi_ERC20 or AFRi_TRC20.', data: null, status: 400 });
+    }
+  } catch (err) {
+    sendResponse(res, { success: false, message: err.message, data: null, status: 500 });
   }
 });
 
@@ -233,7 +443,8 @@ router.post('/transfer', async (req, res) => {
       // Perform meta-transfer automatically using provided privateKey
       const tx = await africoinService.metaTransferAuto(privateKey, to, amount);
       txHash = tx.hash ?? tx?.transactionHash ?? tx;
-      explorerUrl = process.env.NODE_ENV === 'test' ? `https://sepolia.etherscan.io/tx/${txHash}` : `https://etherscan.io/tx/${txHash}`;
+      const isTest = process.env.NODE_ENV === 'test' || /sepolia/i.test(process.env.ETHEREUM_RPC_URL || '');
+      explorerUrl = isTest ? `https://sepolia.etherscan.io/tx/${txHash}` : `https://etherscan.io/tx/${txHash}`;
     } else if (normalizedChain === 'AFRI_TRC20') {
       if (!to.startsWith('T')) throw new Error('AFRi_TRC20 transfer requires a T... address');
       // Perform meta-transfer automatically (user signs, company pays gas)
@@ -457,17 +668,30 @@ router.get('/gas-fees', async (req, res) => {
       let low, medium, high;
       try {
         const apiKey = process.env.ETHERSCAN_API_KEY || 'YourApiKeyToken';
-        const url = `https://api.etherscan.io/api?module=gastracker&action=gasoracle&apikey=${apiKey}`;
-        const resp = await fetch(url);
-        const data = await resp.json();
+        const config = require('../config/provider');
+        const rpcUrl = (config && config.ethereum && config.ethereum.rpcUrl) || '';
+        const isSepolia = /sepolia/i.test(rpcUrl) || (process.env.NODE_ENV || '').toLowerCase() === 'test';
+        const chainId = isSepolia ? 11155111 : 1; // Sepolia chain id for Etherscan v2
+        const url = `https://api.etherscan.io/v2/api?chainid=${chainId}&module=gastracker&action=gasoracle&apikey=${apiKey}`;
+
+        logger.info('Fetching Ethereum gas fees from:', url);
+
+        const response = await axios.get(url, {
+          timeout: 10000,
+          headers: { 'User-Agent': 'Mozilla/5.0' }
+        });
+
+        logger.info('Etherscan API response:', JSON.stringify(response.data));
+
+        const data = response.data;
         if (!data || data.status !== '1') throw new Error(data?.message || 'Etherscan error');
         const r = data.result;
         const baseFee = gweiToEth(parseFloat(r.suggestBaseFee));
         low = baseFee + gweiToEth(parseFloat(r.SafeGasPrice));
         medium = baseFee + gweiToEth(parseFloat(r.ProposeGasPrice));
         high = baseFee + gweiToEth(parseFloat(r.FastGasPrice));
-      } catch (_) {
-        // Fallback static values in ETH
+      } catch (err) {
+        logger.warn('Failed to fetch Etherscan gasoracle v2, using fallback:', err?.message || err);
         const baseFee = gweiToEth(30);
         low = baseFee + gweiToEth(35);
         medium = baseFee + gweiToEth(40);
@@ -560,9 +784,11 @@ router.get('/transactions/:address', async (req, res) => {
       const etherscanPage = Math.floor((page * size) / 100) + 1;
       const offset = 100; // batch size
       const rpcUrl = (config && config.ethereum && config.ethereum.rpcUrl) || '';
-      const isSepolia = /sepolia/i.test(rpcUrl);
-      const baseUrl = isSepolia ? 'https://api-sepolia.etherscan.io/api' : 'https://api.etherscan.io/api';
+      const isSepolia = /sepolia/i.test(rpcUrl) || (process.env.NODE_ENV || '').toLowerCase() === 'test';
+      const baseUrl = 'https://api.etherscan.io/v2/api';
+      const chainid = isSepolia ? '11155111' : '1';
       const params = new URLSearchParams({
+        chainid: chainid,
         module: 'account',
         action: 'tokentx',
         contractaddress: contractAddress,
@@ -575,8 +801,14 @@ router.get('/transactions/:address', async (req, res) => {
       const url = `${baseUrl}?${params.toString()}`;
       const resp = await fetch(url);
       const data = await resp.json();
-      if (!data || data.status !== '1') {
-        throw new Error(data?.message || 'Etherscan API error');
+      if (!data) throw new Error('Empty response from Etherscan');
+      if (data.status !== '1') {
+        const msg = String(data.message || '').toLowerCase();
+        if (msg.includes('no transactions') || msg.includes('no records found')) {
+          return { transactions: [], total: 0 };
+        }
+        // If apikey is invalid but they want Mainnet, they might just see "NOTOK"
+        throw new Error(`Etherscan API error: ${data.result || data.message || 'NOTOK'}`);
       }
       let txs = data.result || [];
       // Time filter (client-side)
@@ -679,7 +911,8 @@ router.get('/transactions/:address', async (req, res) => {
       const apiKey = process.env.ETHERSCAN_API_KEY || 'YourApiKeyToken';
       const rpcUrl = (config && config.ethereum && config.ethereum.rpcUrl) || '';
       const isSepolia = /sepolia/i.test(rpcUrl) || (process.env.NODE_ENV || '').toLowerCase() === 'test';
-      const baseApi = isSepolia ? 'https://api-sepolia.etherscan.io/api' : 'https://api.etherscan.io/api';
+      const baseUrl = 'https://api.etherscan.io/v2/api';
+      const chainid = isSepolia ? '11155111' : '1';
       const explorerBaseUrl = isSepolia ? 'https://sepolia.etherscan.io/tx/' : 'https://etherscan.io/tx/';
 
       // Use batches of 100 from Etherscan and slice for pagination
@@ -687,6 +920,7 @@ router.get('/transactions/:address', async (req, res) => {
       const offset = 100;
 
       const paramsNormal = new URLSearchParams({
+        chainid: chainid,
         module: 'account',
         action: 'txlist',
         address: addr,
@@ -699,6 +933,7 @@ router.get('/transactions/:address', async (req, res) => {
       });
 
       const paramsToken = new URLSearchParams({
+        chainid: chainid,
         module: 'account',
         action: 'tokentx',
         address: addr,
@@ -709,8 +944,8 @@ router.get('/transactions/:address', async (req, res) => {
       });
 
       const [normalResp, tokenResp] = await Promise.all([
-        fetch(`${baseApi}?${paramsNormal.toString()}`),
-        fetch(`${baseApi}?${paramsToken.toString()}`)
+        fetch(`${baseUrl}?${paramsNormal.toString()}`),
+        fetch(`${baseUrl}?${paramsToken.toString()}`)
       ]);
       const [normalData, tokenData] = await Promise.all([normalResp.json(), tokenResp.json()]);
 
@@ -720,7 +955,7 @@ router.get('/transactions/:address', async (req, res) => {
         const msg = String(data.message || '').toLowerCase();
         if (msg.includes('no transactions') || msg.includes('no records found')) return [];
         // treat rate limit errors or invalid key as hard errors
-        throw new Error(data.message || 'Etherscan API error');
+        throw new Error(`Etherscan API error: ${data.result || data.message || 'NOTOK'}`);
       };
 
       const normal = normalizeEtherscan(normalData);
