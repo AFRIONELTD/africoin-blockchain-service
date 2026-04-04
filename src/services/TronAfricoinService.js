@@ -347,11 +347,11 @@ async function getGasFee(type) {
   // Tron uses energy and bandwidth, but for simplicity, return estimated fee in TRX
   let fee;
   if (type === 'transfer') {
-    fee = 10; // Estimated TRX for transfer
+    fee = 1; // Estimated TRX for transfer
   } else if (type === 'mint' || type === 'burn') {
-    fee = 50; // Estimated TRX for mint/burn
+    fee = 2; // Estimated TRX for mint/burn
   } else {
-    fee = 10; // default
+    fee = 1; // default
   }
   return fee.toString();
 }

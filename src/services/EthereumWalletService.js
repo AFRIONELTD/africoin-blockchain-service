@@ -60,12 +60,23 @@ class EthereumWalletService extends IWalletService {
     try {
       const config = require('../config/provider');
       const provider = config.ethereum.provider;
+      console.log('Provider RPC URL:', config.ethereum.rpcUrl);
+      console.log('Contract address:', tokenContractAddress);
+      console.log('Address to check:', address);
       if (!provider) {
         logger.error('Ethereum provider is undefined:', provider);
         throw new Error('Ethereum provider is undefined. Check your SEPOLIA_RPC_URL and config.');
       }
+      const network = await provider.getNetwork();
+      console.log('Connected to network:', network.name, 'chainId:', network.chainId.toString());
       const contract = new ethers.Contract(tokenContractAddress, tokenAbi, provider);
+      console.log("Contract created successfully");
+      console.log("Calling name()...");
+      const name = await contract.name();
+      console.log("Contract name:", name);
+      console.log("Calling balanceOf...");
       const balance = await contract.balanceOf(address);
+      console.log("Balance raw:", balance.toString());
       return ethers.formatUnits(balance, 18);
     } catch (error) {
       logger.error('Error getting ERC20 token balance:', error);
